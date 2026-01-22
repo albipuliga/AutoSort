@@ -1,0 +1,127 @@
+import SwiftUI
+
+/// Settings tab for general configuration
+struct GeneralSettingsView: View {
+    @ObservedObject var viewModel: SettingsViewModel
+
+    @State private var isSelectingWatchedFolder = false
+    @State private var isSelectingBaseDirectory = false
+
+    var body: some View {
+        Form {
+            Section {
+                folderPicker(
+                    title: "Watch Folder",
+                    subtitle: "New files in this folder will be automatically sorted",
+                    displayName: viewModel.watchedFolderDisplayName,
+                    isSelecting: $isSelectingWatchedFolder,
+                    onSelect: viewModel.setWatchedFolder
+                )
+
+                folderPicker(
+                    title: "Destination Folder",
+                    subtitle: "Course folders will be created here",
+                    displayName: viewModel.baseDirectoryDisplayName,
+                    isSelecting: $isSelectingBaseDirectory,
+                    onSelect: viewModel.setBaseDirectory
+                )
+            } header: {
+                Text("Folders")
+            }
+
+            Section {
+                Toggle("Show notifications", isOn: Binding(
+                    get: { viewModel.showNotifications },
+                    set: { viewModel.setShowNotifications($0) }
+                ))
+
+                Toggle("Launch at login", isOn: Binding(
+                    get: { viewModel.launchAtLogin },
+                    set: { viewModel.setLaunchAtLogin($0) }
+                ))
+            } header: {
+                Text("Behavior")
+            }
+
+            Section {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Status")
+                            .font(.headline)
+
+                        if viewModel.hasValidConfiguration {
+                            Label("Ready to sort files", systemImage: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                        } else {
+                            Label("Configuration incomplete", systemImage: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                        }
+                    }
+
+                    Spacer()
+                }
+            } header: {
+                Text("Configuration Status")
+            }
+        }
+        .formStyle(.grouped)
+        .padding()
+    }
+
+    @ViewBuilder
+    private func folderPicker(
+        title: String,
+        subtitle: String,
+        displayName: String,
+        isSelecting: Binding<Bool>,
+        onSelect: @escaping (URL) -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.headline)
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                Button("Choose...") {
+                    isSelecting.wrappedValue = true
+                }
+            }
+
+            HStack {
+                Image(systemName: "folder.fill")
+                    .foregroundColor(.secondary)
+                Text(displayName)
+                    .font(.system(.body, design: .monospaced))
+                    .foregroundColor(displayName == "Not Selected" ? .secondary : .primary)
+            }
+            .padding(8)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .cornerRadius(6)
+        }
+        .fileImporter(
+            isPresented: isSelecting,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                if let url = urls.first {
+                    onSelect(url)
+                }
+            case .failure(let error):
+                print("Folder selection error: \(error)")
+            }
+        }
+    }
+}
+
+#Preview {
+    GeneralSettingsView(viewModel: SettingsViewModel())
+        .frame(width: 500, height: 400)
+}

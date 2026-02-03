@@ -31,7 +31,10 @@ struct SortedFileRecord: Identifiable, Codable {
 
     /// Human-readable destination description
     var destinationDescription: String {
-        "\(courseCode) / Session \(sessionNumber)"
+        let sessionFolderName = URL(fileURLWithPath: destinationPath)
+            .deletingLastPathComponent()
+            .lastPathComponent
+        return "\(courseCode) / \(sessionFolderName)"
     }
 
     /// Relative time string for display (e.g., "2 minutes ago")

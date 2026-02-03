@@ -237,6 +237,34 @@ final class SettingsService: ObservableObject {
         settings.courseMappings[index].isEnabled.toggle()
     }
 
+    // MARK: - Session Keywords
+
+    func setSessionKeywords(_ keywords: [String]) {
+        let normalized = normalizeSessionKeywords(keywords)
+        settings.sessionKeywords = normalized.isEmpty ? Constants.Session.defaultKeywords : normalized
+    }
+
+    func setSessionFolderTemplate(_ template: String) {
+        let trimmed = template.trimmingCharacters(in: .whitespacesAndNewlines)
+        settings.sessionFolderTemplate = trimmed.isEmpty ? Constants.Session.defaultFolderTemplate : trimmed
+    }
+
+    private func normalizeSessionKeywords(_ keywords: [String]) -> [String] {
+        var seen = Set<String>()
+        var normalized: [String] = []
+
+        for keyword in keywords {
+            let trimmed = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            let key = trimmed.lowercased()
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            normalized.append(trimmed)
+        }
+
+        return normalized
+    }
+
     // MARK: - Watching State
 
     func setWatchingEnabled(_ enabled: Bool) {

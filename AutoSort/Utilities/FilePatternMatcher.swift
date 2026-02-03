@@ -10,14 +10,13 @@ struct PatternMatchResult {
 /// Handles pattern matching for course codes and session numbers in filenames
 final class FilePatternMatcher {
     private let courseMappings: [CourseMapping]
+    private let sessionRegex: NSRegularExpression?
 
-    /// Session pattern: "S" followed by 1-2 digits, with boundary checking
-    /// Negative lookbehind prevents matching letters before S (e.g., "ES1" in "NOTES1")
-    /// Negative lookahead prevents matching more digits after
-    private static let sessionPattern = #"(?<![A-Za-z])S(\d{1,2})(?!\d)"#
-
-    init(courseMappings: [CourseMapping]) {
+    init(courseMappings: [CourseMapping], sessionKeywords: [String]) {
         self.courseMappings = courseMappings.filter { $0.isEnabled }
+        let normalizedKeywords = Self.normalizeSessionKeywords(sessionKeywords)
+        let keywords = normalizedKeywords.isEmpty ? Constants.Session.defaultKeywords : normalizedKeywords
+        self.sessionRegex = Self.buildSessionRegex(from: keywords)
     }
 
     /// Attempts to match a filename against course codes and extract session number
@@ -70,10 +69,7 @@ final class FilePatternMatcher {
 
     /// Extracts session number from filename using regex
     private func extractSessionNumber(from filename: String) -> Int? {
-        guard let regex = try? NSRegularExpression(
-            pattern: Self.sessionPattern,
-            options: .caseInsensitive
-        ) else {
+        guard let regex = sessionRegex else {
             return nil
         }
 
@@ -98,6 +94,40 @@ final class FilePatternMatcher {
 extension FilePatternMatcher {
     /// Creates a matcher from current settings
     static func fromCurrentSettings() -> FilePatternMatcher {
-        FilePatternMatcher(courseMappings: SettingsService.shared.settings.courseMappings)
+        FilePatternMatcher(
+            courseMappings: SettingsService.shared.settings.courseMappings,
+            sessionKeywords: SettingsService.shared.settings.sessionKeywords
+        )
+    }
+}
+
+// MARK: - Session Keyword Helpers
+
+extension FilePatternMatcher {
+    private static func normalizeSessionKeywords(_ keywords: [String]) -> [String] {
+        var seen = Set<String>()
+        var normalized: [String] = []
+
+        for keyword in keywords {
+            let trimmed = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            let key = trimmed.lowercased()
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            normalized.append(trimmed)
+        }
+
+        return normalized
+    }
+
+    /// Builds a regex to match any keyword followed by a 1-2 digit session number.
+    /// Negative lookbehind prevents matching letters before the keyword.
+    private static func buildSessionRegex(from keywords: [String]) -> NSRegularExpression? {
+        let sorted = keywords.sorted { $0.count > $1.count }
+        let escaped = sorted.map { NSRegularExpression.escapedPattern(for: $0) }
+        let keywordPattern = "(?:" + escaped.joined(separator: "|") + ")"
+        let delimiterPattern = #"(?:[\s_\-\.]*)"#
+        let pattern = #"(?<![A-Za-z])"# + keywordPattern + delimiterPattern + #"(\d{1,2})(?!\d)"#
+        return try? NSRegularExpression(pattern: pattern, options: .caseInsensitive)
     }
 }

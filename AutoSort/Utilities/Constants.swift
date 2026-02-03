@@ -30,5 +30,11 @@ enum Constants {
 
         /// Maximum valid session number
         static let maxSession = 30
+
+        /// Default keywords used to detect session numbers in filenames
+        static let defaultKeywords = ["S", "Session", "Lecture", "Week", "Class"]
+
+        /// Default template for session destination folders
+        static let defaultFolderTemplate = "Session {n}"
     }
 }

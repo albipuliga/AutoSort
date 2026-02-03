@@ -11,6 +11,8 @@ final class SettingsViewModel: ObservableObject {
     @Published var launchAtLogin: Bool = false
     @Published var showNotifications: Bool = true
     @Published var duplicateHandling: DuplicateHandlingOption = .rename
+    @Published var sessionKeywordsText: String = ""
+    @Published var sessionFolderTemplateText: String = ""
 
     // Course Mappings
     @Published var courseMappings: [CourseMapping] = []
@@ -39,7 +41,27 @@ final class SettingsViewModel: ObservableObject {
                 self?.launchAtLogin = settings.launchAtLogin
                 self?.showNotifications = settings.showNotifications
                 self?.duplicateHandling = settings.duplicateHandling
+                self?.sessionKeywordsText = Self.formatSessionKeywords(settings.sessionKeywords)
+                self?.sessionFolderTemplateText = settings.sessionFolderTemplate
                 self?.courseMappings = settings.courseMappings
+            }
+            .store(in: &cancellables)
+
+        $sessionKeywordsText
+            .dropFirst()
+            .removeDuplicates()
+            .debounce(for: .milliseconds(350), scheduler: DispatchQueue.main)
+            .sink { [weak self] text in
+                self?.applySessionKeywords(text)
+            }
+            .store(in: &cancellables)
+
+        $sessionFolderTemplateText
+            .dropFirst()
+            .removeDuplicates()
+            .debounce(for: .milliseconds(350), scheduler: DispatchQueue.main)
+            .sink { [weak self] text in
+                self?.applySessionFolderTemplate(text)
             }
             .store(in: &cancellables)
     }
@@ -70,6 +92,26 @@ final class SettingsViewModel: ObservableObject {
 
     func setDuplicateHandling(_ option: DuplicateHandlingOption) {
         settingsService.setDuplicateHandling(option)
+    }
+
+    // MARK: - Session Keywords
+
+    func setSessionKeywordsText(_ text: String) {
+        sessionKeywordsText = text
+    }
+
+    func commitSessionKeywords() {
+        applySessionKeywords(sessionKeywordsText)
+    }
+
+    // MARK: - Session Folder Template
+
+    func setSessionFolderTemplateText(_ text: String) {
+        sessionFolderTemplateText = text
+    }
+
+    func commitSessionFolderTemplate() {
+        applySessionFolderTemplate(sessionFolderTemplateText)
     }
 
     // MARK: - Course Mappings
@@ -158,5 +200,61 @@ final class SettingsViewModel: ObservableObject {
         watchedFolderPath != nil &&
         baseDirectoryPath != nil &&
         !courseMappings.isEmpty
+    }
+
+    // MARK: - Helpers
+
+    private static func parseSessionKeywords(_ text: String) -> [String] {
+        text.split(whereSeparator: { $0 == "," || $0 == ";" })
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private static func normalizeSessionKeywords(_ keywords: [String]) -> [String] {
+        var seen = Set<String>()
+        var normalized: [String] = []
+
+        for keyword in keywords {
+            let trimmed = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            let key = trimmed.lowercased()
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            normalized.append(trimmed)
+        }
+
+        return normalized
+    }
+
+    private static func formatSessionKeywords(_ keywords: [String]) -> String {
+        keywords.joined(separator: ", ")
+    }
+
+    private func applySessionKeywords(_ text: String) {
+        let parsed = Self.parseSessionKeywords(text)
+        let normalized = Self.normalizeSessionKeywords(parsed)
+        let effective = normalized.isEmpty ? Constants.Session.defaultKeywords : normalized
+        let current = settingsService.settings.sessionKeywords
+
+        if Self.lowercasedList(effective) == Self.lowercasedList(current) {
+            return
+        }
+
+        settingsService.setSessionKeywords(parsed)
+    }
+
+    private func applySessionFolderTemplate(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let effective = trimmed.isEmpty ? Constants.Session.defaultFolderTemplate : trimmed
+
+        if effective == settingsService.settings.sessionFolderTemplate {
+            return
+        }
+
+        settingsService.setSessionFolderTemplate(trimmed)
+    }
+
+    private static func lowercasedList(_ values: [String]) -> [String] {
+        values.map { $0.lowercased() }
     }
 }

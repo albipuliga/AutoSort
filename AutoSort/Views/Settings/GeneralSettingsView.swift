@@ -6,6 +6,8 @@ struct GeneralSettingsView: View {
 
     @State private var isSelectingWatchedFolder = false
     @State private var isSelectingBaseDirectory = false
+    @FocusState private var isSessionKeywordsFocused: Bool
+    @FocusState private var isSessionFolderTemplateFocused: Bool
 
     var body: some View {
         Form {
@@ -55,6 +57,69 @@ struct GeneralSettingsView: View {
                     .foregroundColor(.secondary)
             } header: {
                 Text("Behavior")
+            }
+
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    TextField(
+                        "Session keywords (e.g., S, Session, Lecture)",
+                        text: Binding(
+                            get: { viewModel.sessionKeywordsText },
+                            set: { viewModel.setSessionKeywordsText($0) }
+                        )
+                    )
+                    .textFieldStyle(.roundedBorder)
+                    .focused($isSessionKeywordsFocused)
+                    .onSubmit {
+                        viewModel.commitSessionKeywords()
+                    }
+                    .onChange(of: isSessionKeywordsFocused) { focused in
+                        if !focused {
+                            viewModel.commitSessionKeywords()
+                        }
+                    }
+
+                    Text(
+                        "Used to detect session numbers in filenames (matches Week1 and Week 1). " +
+                        "Separate keywords with commas; leave empty to use defaults. " +
+                        "Does not affect destination folder names."
+                    )
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                }
+            } header: {
+                Text("Matching")
+            }
+
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    TextField(
+                        "Session folder name (e.g., Session {n} or Week {n})",
+                        text: Binding(
+                            get: { viewModel.sessionFolderTemplateText },
+                            set: { viewModel.setSessionFolderTemplateText($0) }
+                        )
+                    )
+                    .textFieldStyle(.roundedBorder)
+                    .focused($isSessionFolderTemplateFocused)
+                    .onSubmit {
+                        viewModel.commitSessionFolderTemplate()
+                    }
+                    .onChange(of: isSessionFolderTemplateFocused) { focused in
+                        if !focused {
+                            viewModel.commitSessionFolderTemplate()
+                        }
+                    }
+
+                    Text(
+                        "Use {n} or {number} as a placeholder. If omitted, the number is appended. " +
+                        "Independent from matching keywords."
+                    )
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            } header: {
+                Text("Destination")
             }
 
             Section {

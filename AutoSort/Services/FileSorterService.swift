@@ -198,7 +198,7 @@ final class FileSorterService: ObservableObject {
             .appendingPathComponent(match.courseMapping.folderName)
 
         let sessionFolderURL = courseFolderURL
-            .appendingPathComponent("Session \(match.sessionNumber)")
+            .appendingPathComponent(sessionFolderName(for: match.sessionNumber))
 
         let destinationURL = sessionFolderURL
             .appendingPathComponent(sourceURL.lastPathComponent)
@@ -255,6 +255,21 @@ final class FileSorterService: ObservableObject {
             sourcePath: sourceURL.path,
             destinationPath: finalDestinationURL.path
         )
+    }
+
+    private func sessionFolderName(for sessionNumber: Int) -> String {
+        let rawTemplate = settingsService.settings.sessionFolderTemplate
+        let trimmed = rawTemplate.trimmingCharacters(in: .whitespacesAndNewlines)
+        let template = trimmed.isEmpty ? Constants.Session.defaultFolderTemplate : trimmed
+        let number = String(sessionNumber)
+
+        if template.contains("{number}") || template.contains("{n}") {
+            return template
+                .replacingOccurrences(of: "{number}", with: number)
+                .replacingOccurrences(of: "{n}", with: number)
+        }
+
+        return "\(template) \(number)"
     }
 
     private enum DuplicateResolution {

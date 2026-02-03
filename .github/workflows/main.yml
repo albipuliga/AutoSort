@@ -1,0 +1,35 @@
+name: release-dmg
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build app (Release, unsigned)
+        run: |
+          xcodebuild \
+            -scheme "AutoSort" \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Create DMG
+        run: |
+          hdiutil create \
+            -volname "AutoSort" \
+            -srcfolder "build/Build/Products/Release/AutoSort.app" \
+            -ov -format UDZO "AutoSort.dmg"
+
+      - name: Publish Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" "AutoSort.dmg" \
+            --title "${GITHUB_REF_NAME}" \
+            --notes "AutoSort ${GITHUB_REF_NAME}"

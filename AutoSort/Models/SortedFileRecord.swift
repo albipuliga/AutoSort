@@ -7,6 +7,7 @@ struct SortedFileRecord: Identifiable, Codable {
     let filename: String
     let courseCode: String
     let sessionNumber: Int
+    let sourcePath: String?
     let destinationPath: String
     let timestamp: Date
 
@@ -15,6 +16,7 @@ struct SortedFileRecord: Identifiable, Codable {
         filename: String,
         courseCode: String,
         sessionNumber: Int,
+        sourcePath: String? = nil,
         destinationPath: String,
         timestamp: Date = Date()
     ) {
@@ -22,6 +24,7 @@ struct SortedFileRecord: Identifiable, Codable {
         self.filename = filename
         self.courseCode = courseCode
         self.sessionNumber = sessionNumber
+        self.sourcePath = sourcePath
         self.destinationPath = destinationPath
         self.timestamp = timestamp
     }
@@ -50,6 +53,7 @@ extension SortedFileRecord {
         filename: "BLK_S3_Slides.pdf",
         courseCode: "BLK",
         sessionNumber: 3,
+        sourcePath: "/Users/example/Downloads/BLK_S3_Slides.pdf",
         destinationPath: "/Users/example/Courses/BLOCKCHAIN/Session 3/BLK_S3_Slides.pdf"
     )
 }

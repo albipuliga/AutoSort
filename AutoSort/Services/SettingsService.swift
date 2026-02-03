@@ -72,6 +72,11 @@ final class SettingsService: ObservableObject {
         saveRecentActivity()
     }
 
+    func removeRecentActivity(_ record: SortedFileRecord) {
+        recentActivity.removeAll { $0.id == record.id }
+        saveRecentActivity()
+    }
+
     private func saveRecentActivity() {
         guard let data = try? encoder.encode(recentActivity) else { return }
         defaults.set(data, forKey: Constants.UserDefaultsKeys.recentActivity)

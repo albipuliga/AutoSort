@@ -15,6 +15,10 @@ enum FileSorterError: LocalizedError {
     case destinationExists
     case moveFailed(Error)
     case folderCreationFailed(Error)
+    case noRecentActivity
+    case sourcePathMissing
+    case undoSourceExists
+    case undoDestinationMissing
 
     var errorDescription: String? {
         switch self {
@@ -28,6 +32,14 @@ enum FileSorterError: LocalizedError {
             return "Failed to move file: \(error.localizedDescription)"
         case .folderCreationFailed(let error):
             return "Failed to create destination folder: \(error.localizedDescription)"
+        case .noRecentActivity:
+            return "No recent file move to undo"
+        case .sourcePathMissing:
+            return "Original file location is unknown"
+        case .undoSourceExists:
+            return "A file already exists at the original location"
+        case .undoDestinationMissing:
+            return "Moved file could not be found at the destination"
         }
     }
 }
@@ -109,6 +121,38 @@ final class FileSorterService: ObservableObject {
         }
     }
 
+    /// Undo the most recent file move, if possible
+    func undoLastMove() -> Result<SortedFileRecord, Error> {
+        let record = settingsService.recentActivity.first
+        let wasActive = isActive
+
+        if wasActive {
+            stop()
+        }
+
+        defer {
+            if wasActive {
+                start()
+            }
+        }
+
+        do {
+            let revertedRecord = try revertMostRecentMove(record)
+
+            if settingsService.settings.showNotifications {
+                notificationService.sendUndoSuccessNotification(record: revertedRecord)
+            }
+
+            return .success(revertedRecord)
+        } catch {
+            if settingsService.settings.showNotifications {
+                let filename = record?.filename ?? "file"
+                notificationService.sendUndoErrorNotification(filename: filename, error: error.localizedDescription)
+            }
+            return .failure(error)
+        }
+    }
+
     // MARK: - Private Methods
 
     private func handleSettingsChange(_ settings: AppSettings) {
@@ -178,8 +222,53 @@ final class FileSorterService: ObservableObject {
             filename: sourceURL.lastPathComponent,
             courseCode: match.courseCode,
             sessionNumber: match.sessionNumber,
+            sourcePath: sourceURL.path,
             destinationPath: destinationURL.path
         )
+    }
+
+    private func revertMostRecentMove(_ record: SortedFileRecord?) throws -> SortedFileRecord {
+        guard let record = record else {
+            throw FileSorterError.noRecentActivity
+        }
+
+        guard let sourcePath = record.sourcePath else {
+            throw FileSorterError.sourcePathMissing
+        }
+
+        let fileManager = FileManager.default
+        let sourceURL = URL(fileURLWithPath: sourcePath)
+        let destinationURL = URL(fileURLWithPath: record.destinationPath)
+
+        guard fileManager.fileExists(atPath: destinationURL.path) else {
+            throw FileSorterError.undoDestinationMissing
+        }
+
+        if fileManager.fileExists(atPath: sourceURL.path) {
+            throw FileSorterError.undoSourceExists
+        }
+
+        let sourceFolderURL = sourceURL.deletingLastPathComponent()
+        if !fileManager.fileExists(atPath: sourceFolderURL.path) {
+            do {
+                try fileManager.createDirectory(
+                    at: sourceFolderURL,
+                    withIntermediateDirectories: true,
+                    attributes: nil
+                )
+            } catch {
+                throw FileSorterError.folderCreationFailed(error)
+            }
+        }
+
+        do {
+            try fileManager.moveItem(at: destinationURL, to: sourceURL)
+        } catch {
+            throw FileSorterError.moveFailed(error)
+        }
+
+        settingsService.removeRecentActivity(record)
+        return record
     }
 }
 

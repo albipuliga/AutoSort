@@ -81,6 +81,14 @@ struct MenuBarView: View {
                 Spacer()
 
                 if !viewModel.recentActivity.isEmpty {
+                    Button("Undo") {
+                        viewModel.undoLastMove()
+                    }
+                    .font(.caption)
+                    .buttonStyle(.plain)
+                    .foregroundColor(viewModel.canUndoLastMove ? .accentColor : .secondary)
+                    .disabled(!viewModel.canUndoLastMove)
+
                     Button("Clear") {
                         viewModel.clearRecentActivity()
                     }

@@ -66,6 +66,10 @@ final class MenuBarViewModel: ObservableObject {
         settingsService.clearRecentActivity()
     }
 
+    func undoLastMove() {
+        _ = fileSorterService.undoLastMove()
+    }
+
     func revealInFinder(_ record: SortedFileRecord) {
         record.revealInFinder()
     }
@@ -98,5 +102,12 @@ final class MenuBarViewModel: ObservableObject {
             return .gray
         }
         return isWatching ? .green : .orange
+    }
+
+    var canUndoLastMove: Bool {
+        guard let record = recentActivity.first else {
+            return false
+        }
+        return record.sourcePath != nil
     }
 }

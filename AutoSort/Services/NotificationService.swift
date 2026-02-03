@@ -74,6 +74,38 @@ final class NotificationService: NSObject {
         notificationCenter.add(request)
     }
 
+    /// Sends a notification when a file move is undone
+    func sendUndoSuccessNotification(record: SortedFileRecord) {
+        let content = UNMutableNotificationContent()
+        content.title = "Undo Complete"
+        content.body = "\(record.filename) moved back to the original folder"
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: nil
+        )
+
+        notificationCenter.add(request)
+    }
+
+    /// Sends an error notification when undo fails
+    func sendUndoErrorNotification(filename: String, error: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "Undo Failed"
+        content.body = "Could not undo \(filename): \(error)"
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: nil
+        )
+
+        notificationCenter.add(request)
+    }
+
     // MARK: - Notification Actions
 
     /// Sets up notification categories and actions

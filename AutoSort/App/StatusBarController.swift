@@ -99,6 +99,13 @@ final class StatusBarController {
         if !popover.isShown {
             popover.show(relativeTo: statusButton.bounds, of: statusButton, preferredEdge: .minY)
         }
+        if let window = popover.contentViewController?.view.window {
+            window.makeFirstResponder(nil)
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.popover.contentViewController?.view.window?.makeFirstResponder(nil)
+            }
+        }
         NSApp.activate(ignoringOtherApps: true)
     }
 

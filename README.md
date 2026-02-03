@@ -1,4 +1,7 @@
-# AutoSort
+<p align="center">
+  <img src="AutoSort/Resources/Assets.xcassets/AppIcon.appiconset/icon_256x256@2x.png" alt="AutoSort logo" width="80" height="80" />
+</p>
+<h1 align="center" style="font-size: 40px;">AutoSort</h1>
 
 AutoSort is a macOS menu bar app that keeps course materials organized for you. Drop files into a watch folder (or drag them into the menu bar) and AutoSort moves them into the right course and session folders based on the filename. It is designed for students and educators who regularly download lecture materials and want a clean, predictable folder structure without manual sorting.
 

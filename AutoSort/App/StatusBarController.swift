@@ -8,6 +8,7 @@ final class StatusBarController {
     private let statusItem: NSStatusItem
     private let popover: NSPopover
     private let viewModel: MenuBarViewModel
+    private var statusItemView: StatusItemView?
     private var cancellables = Set<AnyCancellable>()
     private var isClosing = false
 
@@ -23,6 +24,8 @@ final class StatusBarController {
     }
 
     private func configureStatusItem() {
+        guard let button = statusItem.button else { return }
+
         let statusView = StatusItemView()
         statusView.onClick = { [weak self] in
             self?.togglePopover()
@@ -31,8 +34,21 @@ final class StatusBarController {
             self?.showPopover()
         }
         statusView.isWatching = viewModel.isWatching
-        statusItem.view = statusView
+        statusView.translatesAutoresizingMaskIntoConstraints = false
+
+        button.image = nil
+        button.title = ""
+        button.addSubview(statusView)
+
+        NSLayoutConstraint.activate([
+            statusView.leadingAnchor.constraint(equalTo: button.leadingAnchor),
+            statusView.trailingAnchor.constraint(equalTo: button.trailingAnchor),
+            statusView.topAnchor.constraint(equalTo: button.topAnchor),
+            statusView.bottomAnchor.constraint(equalTo: button.bottomAnchor)
+        ])
+
         statusItem.length = statusView.intrinsicContentSize.width
+        statusItemView = statusView
     }
 
     private func configurePopover() {
@@ -43,7 +59,6 @@ final class StatusBarController {
         popover.contentViewController = hostingController
         popover.behavior = .applicationDefined
         popover.animates = false
-        hostingController.view.layoutSubtreeIfNeeded()
         popover.contentSize = hostingController.view.fittingSize
     }
 
@@ -51,7 +66,7 @@ final class StatusBarController {
         viewModel.$isWatching
             .receive(on: RunLoop.main)
             .sink { [weak self] isWatching in
-                (self?.statusItem.view as? StatusItemView)?.isWatching = isWatching
+                self?.statusItemView?.isWatching = isWatching
             }
             .store(in: &cancellables)
     }
@@ -77,12 +92,12 @@ final class StatusBarController {
     }
 
     private func showPopover() {
-        guard let statusView = statusItem.view else { return }
+        guard let statusButton = statusItem.button else { return }
         if let contentView = popover.contentViewController?.view {
             contentView.alphaValue = 1.0
         }
         if !popover.isShown {
-            popover.show(relativeTo: statusView.bounds, of: statusView, preferredEdge: .minY)
+            popover.show(relativeTo: statusButton.bounds, of: statusButton, preferredEdge: .minY)
         }
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -95,8 +110,12 @@ final class StatusBarController {
         guard popover.isShown, !isClosing else { return }
         isClosing = true
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+        Task { @MainActor [weak self] in
             guard let self = self else { return }
+            if delay > 0 {
+                let nanoseconds = UInt64(delay * 1_000_000_000)
+                try? await Task.sleep(nanoseconds: nanoseconds)
+            }
             guard self.popover.isShown else {
                 self.isClosing = false
                 return
@@ -107,14 +126,23 @@ final class StatusBarController {
                     context.duration = fadeDuration
                     contentView.animator().alphaValue = 0.0
                 } completionHandler: { [weak self] in
-                    self?.popover.performClose(nil)
-                    contentView.alphaValue = 1.0
-                    self?.isClosing = false
+                    Task { @MainActor in
+                        self?.finishClosingPopover(resetAlpha: true)
+                    }
                 }
             } else {
-                self.popover.performClose(nil)
-                self.isClosing = false
+                self.finishClosingPopover(resetAlpha: false)
             }
         }
+    }
+
+    @MainActor
+    private func finishClosingPopover(resetAlpha: Bool) {
+        let contentView = popover.contentViewController?.view
+        popover.performClose(nil)
+        if resetAlpha {
+            contentView?.alphaValue = 1.0
+        }
+        isClosing = false
     }
 }

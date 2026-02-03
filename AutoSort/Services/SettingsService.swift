@@ -287,6 +287,12 @@ final class SettingsService: ObservableObject {
         settings.duplicateHandling = option
     }
 
+    // MARK: - Auto-Detect Prompt
+
+    func setHasSeenAutoDetectPrompt(_ seen: Bool) {
+        settings.hasSeenAutoDetectPrompt = seen
+    }
+
     // MARK: - Launch at Login
 
     func setLaunchAtLogin(_ enabled: Bool) {

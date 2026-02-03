@@ -17,6 +17,14 @@ final class SettingsViewModel: ObservableObject {
     // Course Mappings
     @Published var courseMappings: [CourseMapping] = []
 
+    // Auto-Detect
+    @Published var isAutoDetecting: Bool = false
+    @Published var autoDetectSuggestions: [AutoDetectSuggestionState] = []
+    @Published var autoDetectSkippedCount: Int = 0
+    @Published var autoDetectError: String?
+    @Published var isShowingAutoDetectSheet: Bool = false
+    @Published var showAutoDetectPrompt: Bool = false
+
     // UI State
     @Published var isShowingAddMapping: Bool = false
     @Published var editingMapping: CourseMapping?
@@ -148,6 +156,189 @@ final class SettingsViewModel: ObservableObject {
         settingsService.toggleCourseMapping(mapping)
     }
 
+    // MARK: - Auto-Detect
+
+    func maybePromptForAutoDetect() {
+        guard !showAutoDetectPrompt else { return }
+        guard courseMappings.isEmpty else { return }
+        guard settingsService.settings.baseDirectoryPath != nil else { return }
+        guard !settingsService.settings.hasSeenAutoDetectPrompt else { return }
+
+        showAutoDetectPrompt = true
+        settingsService.setHasSeenAutoDetectPrompt(true)
+    }
+
+    func runAutoDetect() {
+        guard !isAutoDetecting else { return }
+        settingsService.setHasSeenAutoDetectPrompt(true)
+
+        guard let baseDirectoryURL = settingsService.baseDirectoryURL else {
+            autoDetectError = "Select a base directory before running auto-detect."
+            return
+        }
+
+        isAutoDetecting = true
+        autoDetectError = nil
+
+        let sessionKeywords = settingsService.settings.sessionKeywords
+
+        Task { [weak self] in
+            let result = await Task.detached(priority: .userInitiated) {
+                CourseAutoDetectService().scan(
+                    baseDirectoryURL: baseDirectoryURL,
+                    sessionKeywords: sessionKeywords
+                )
+            }.value
+
+            guard let self else { return }
+            self.isAutoDetecting = false
+            self.autoDetectSkippedCount = result.skippedFolderCount
+            self.autoDetectSuggestions = self.buildAutoDetectSuggestions(from: result.suggestions)
+            if !result.errors.isEmpty {
+                self.autoDetectError = result.errors.joined(separator: "\n")
+            }
+            self.isShowingAutoDetectSheet = true
+        }
+    }
+
+    func dismissAutoDetectSheet() {
+        isShowingAutoDetectSheet = false
+    }
+
+    func resetAutoDetectState() {
+        autoDetectSuggestions = []
+        autoDetectSkippedCount = 0
+        isAutoDetecting = false
+    }
+
+    func applyAutoDetectSuggestions() {
+        guard autoDetectValidationMessage == nil else { return }
+
+        for suggestion in autoDetectSuggestions {
+            let code = normalizedCourseCode(suggestion.editedCode)
+
+            switch suggestion.action {
+            case .skip, .keepExisting:
+                continue
+            case .add:
+                let mapping = CourseMapping(
+                    courseCode: code,
+                    folderName: suggestion.suggestion.folderName
+                )
+                settingsService.addCourseMapping(mapping)
+            case .replaceExisting:
+                guard let existing = existingMapping(for: code) else { continue }
+                var updated = existing
+                updated.folderName = suggestion.suggestion.folderName
+                settingsService.updateCourseMapping(updated)
+            }
+        }
+
+        dismissAutoDetectSheet()
+    }
+
+    var autoDetectDuplicateCodes: Set<String> {
+        var counts: [String: Int] = [:]
+        for suggestion in autoDetectSuggestions where suggestion.action.isApplied {
+            let code = normalizedCourseCode(suggestion.editedCode)
+            guard !code.isEmpty else { continue }
+            counts[code, default: 0] += 1
+        }
+        return Set(counts.filter { $0.value > 1 }.map { $0.key })
+    }
+
+    var autoDetectValidationMessage: String? {
+        let applied = autoDetectSuggestions.filter { $0.action.isApplied }
+        guard !applied.isEmpty else {
+            return autoDetectSuggestions.isEmpty ? nil : "Select at least one suggestion to apply."
+        }
+
+        for suggestion in applied {
+            let code = normalizedCourseCode(suggestion.editedCode)
+            if !isCourseCodeValid(code) {
+                return "Course codes must be alphanumeric."
+            }
+
+            switch suggestion.action {
+            case .add:
+                if existingMapping(for: code) != nil {
+                    return "Course code \(code) already exists. Choose Replace or Skip."
+                }
+            case .replaceExisting:
+                if existingMapping(for: code) == nil {
+                    return "Course code \(code) does not match an existing mapping."
+                }
+            default:
+                break
+            }
+        }
+
+        if !autoDetectDuplicateCodes.isEmpty {
+            return "Resolve duplicate course codes before applying."
+        }
+
+        return nil
+    }
+
+    func updateAutoDetectCode(_ id: UUID, newValue: String) {
+        guard let index = autoDetectSuggestions.firstIndex(where: { $0.id == id }) else { return }
+        let normalized = normalizedCourseCode(newValue)
+        if autoDetectSuggestions[index].editedCode != normalized {
+            autoDetectSuggestions[index].editedCode = normalized
+        }
+        syncAutoDetectAction(for: id)
+    }
+
+    func syncAutoDetectAction(for id: UUID) {
+        guard let index = autoDetectSuggestions.firstIndex(where: { $0.id == id }) else { return }
+        let code = normalizedCourseCode(autoDetectSuggestions[index].editedCode)
+        let conflictMapping = existingMapping(for: code)
+        let validActions: Set<AutoDetectAction> = conflictMapping == nil
+            ? [.add, .skip]
+            : [.keepExisting, .replaceExisting, .skip]
+
+        autoDetectSuggestions[index].suggestion.existingMappingId = conflictMapping?.id
+
+        if !validActions.contains(autoDetectSuggestions[index].action) {
+            autoDetectSuggestions[index].action = conflictMapping == nil ? .add : .keepExisting
+        }
+    }
+
+    func existingMapping(for code: String) -> CourseMapping? {
+        let normalized = normalizedCourseCode(code)
+        guard !normalized.isEmpty else { return nil }
+        return courseMappings.first { $0.courseCode.uppercased() == normalized.uppercased() }
+    }
+
+    func normalizedCourseCode(_ code: String) -> String {
+        code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+    }
+
+    func isCourseCodeValid(_ code: String) -> Bool {
+        let normalized = normalizedCourseCode(code)
+        return !normalized.isEmpty && normalized.allSatisfy { $0.isLetter || $0.isNumber }
+    }
+
+    private func buildAutoDetectSuggestions(from suggestions: [AutoDetectSuggestion]) -> [AutoDetectSuggestionState] {
+        suggestions.map { suggestion in
+            let existing = existingMapping(for: suggestion.suggestedCode)
+            let updated = AutoDetectSuggestion(
+                id: suggestion.id,
+                folderName: suggestion.folderName,
+                suggestedCode: suggestion.suggestedCode,
+                matchCount: suggestion.matchCount,
+                filesScanned: suggestion.filesScanned,
+                existingMappingId: existing?.id
+            )
+            let action: AutoDetectAction = existing == nil ? .add : .keepExisting
+            return AutoDetectSuggestionState(
+                suggestion: updated,
+                editedCode: updated.suggestedCode,
+                action: action
+            )
+        }
+    }
+
     // MARK: - Validation
 
     private func validateNewMapping() -> Bool {
@@ -255,5 +446,28 @@ final class SettingsViewModel: ObservableObject {
 
     private static func lowercasedList(_ values: [String]) -> [String] {
         values.map { $0.lowercased() }
+    }
+}
+
+enum AutoDetectAction: String, CaseIterable, Identifiable {
+    case add
+    case skip
+    case keepExisting
+    case replaceExisting
+
+    var id: String { rawValue }
+
+    var isApplied: Bool {
+        self == .add || self == .replaceExisting
+    }
+}
+
+struct AutoDetectSuggestionState: Identifiable, Hashable {
+    var suggestion: AutoDetectSuggestion
+    var editedCode: String
+    var action: AutoDetectAction
+
+    var id: UUID {
+        suggestion.id
     }
 }

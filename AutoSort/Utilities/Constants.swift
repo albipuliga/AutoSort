@@ -43,4 +43,9 @@ enum Constants {
         /// Default template for session destination folders
         static let defaultFolderTemplate = "Session {n}"
     }
+
+    enum AutoDetect {
+        /// Maximum number of files scanned per course folder
+        static let maxFilesPerFolder = 200
+    }
 }

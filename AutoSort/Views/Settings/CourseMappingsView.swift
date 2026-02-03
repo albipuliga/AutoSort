@@ -18,6 +18,19 @@ struct CourseMappingsView: View {
 
                 Spacer()
 
+                if viewModel.isAutoDetecting {
+                    ProgressView()
+                        .scaleEffect(0.75)
+                        .padding(.trailing, 4)
+                }
+
+                Button(action: {
+                    viewModel.runAutoDetect()
+                }) {
+                    Label("Auto-detect", systemImage: "wand.and.stars")
+                }
+                .disabled(viewModel.isAutoDetecting)
+
                 Button(action: {
                     viewModel.isShowingAddMapping = true
                 }) {
@@ -41,6 +54,44 @@ struct CourseMappingsView: View {
         .sheet(item: $viewModel.editingMapping) { mapping in
             EditMappingSheet(viewModel: viewModel, mapping: mapping)
         }
+        .sheet(isPresented: $viewModel.isShowingAutoDetectSheet) {
+            AutoDetectMappingsSheet(viewModel: viewModel)
+        }
+        .confirmationDialog(
+            "Auto-detect course mappings?",
+            isPresented: $viewModel.showAutoDetectPrompt,
+            titleVisibility: .visible
+        ) {
+            Button("Scan now") {
+                viewModel.runAutoDetect()
+            }
+            Button("Not now", role: .cancel) { }
+        } message: {
+            Text("Scan your base directory to suggest course mappings.")
+        }
+        .alert(
+            "Auto-detect",
+            isPresented: Binding(
+                get: { viewModel.autoDetectError != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        viewModel.autoDetectError = nil
+                    }
+                }
+            )
+        ) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(viewModel.autoDetectError ?? "")
+        }
+        .onAppear {
+            viewModel.maybePromptForAutoDetect()
+        }
+        .onChange(of: viewModel.isShowingAutoDetectSheet) { isShowing in
+            if !isShowing {
+                viewModel.resetAutoDetectState()
+            }
+        }
     }
 
     private var emptyState: some View {
@@ -54,8 +105,13 @@ struct CourseMappingsView: View {
             Text("Add a mapping to start sorting files automatically")
                 .font(.caption)
                 .foregroundColor(.secondary)
-            Button("Add Mapping") {
-                viewModel.isShowingAddMapping = true
+            HStack {
+                Button("Auto-detect") {
+                    viewModel.runAutoDetect()
+                }
+                Button("Add Mapping") {
+                    viewModel.isShowingAddMapping = true
+                }
             }
             Spacer()
         }

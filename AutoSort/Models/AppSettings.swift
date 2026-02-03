@@ -13,6 +13,7 @@ struct AppSettings: Codable {
     var launchAtLogin: Bool
     var showNotifications: Bool
     var duplicateHandling: DuplicateHandlingOption
+    var hasSeenAutoDetectPrompt: Bool
 
     init(
         watchedFolderPath: String? = nil,
@@ -25,7 +26,8 @@ struct AppSettings: Codable {
         isWatchingEnabled: Bool = true,
         launchAtLogin: Bool = false,
         showNotifications: Bool = true,
-        duplicateHandling: DuplicateHandlingOption = .rename
+        duplicateHandling: DuplicateHandlingOption = .rename,
+        hasSeenAutoDetectPrompt: Bool = false
     ) {
         self.watchedFolderPath = watchedFolderPath
         self.watchedFolderBookmark = watchedFolderBookmark
@@ -38,6 +40,7 @@ struct AppSettings: Codable {
         self.launchAtLogin = launchAtLogin
         self.showNotifications = showNotifications
         self.duplicateHandling = duplicateHandling
+        self.hasSeenAutoDetectPrompt = hasSeenAutoDetectPrompt
     }
 
     /// Checks if the app is properly configured to sort files (manual or watched)
@@ -77,6 +80,7 @@ extension AppSettings {
         case launchAtLogin
         case showNotifications
         case duplicateHandling
+        case hasSeenAutoDetectPrompt
     }
 
     init(from decoder: Decoder) throws {
@@ -95,6 +99,7 @@ extension AppSettings {
         launchAtLogin = try container.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
         showNotifications = try container.decodeIfPresent(Bool.self, forKey: .showNotifications) ?? true
         duplicateHandling = try container.decodeIfPresent(DuplicateHandlingOption.self, forKey: .duplicateHandling) ?? .rename
+        hasSeenAutoDetectPrompt = try container.decodeIfPresent(Bool.self, forKey: .hasSeenAutoDetectPrompt) ?? false
     }
 
     func encode(to encoder: Encoder) throws {
@@ -111,5 +116,6 @@ extension AppSettings {
         try container.encode(launchAtLogin, forKey: .launchAtLogin)
         try container.encode(showNotifications, forKey: .showNotifications)
         try container.encode(duplicateHandling, forKey: .duplicateHandling)
+        try container.encode(hasSeenAutoDetectPrompt, forKey: .hasSeenAutoDetectPrompt)
     }
 }

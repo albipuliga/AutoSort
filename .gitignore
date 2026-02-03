@@ -1,6 +1,12 @@
 # Xcode
-xcuserdata/
 DerivedData/
+build/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+xcuserdata/
+*.xcuserstate
+*.xccheckout
+*.xcscmblueprint
 *.moved-aside
 *.pbxuser
 !default.pbxuser
@@ -10,9 +16,11 @@ DerivedData/
 !default.mode2v3
 *.perspectivev3
 !default.perspectivev3
-build/
 *.hmap
 *.ipa
+
+# Xcode workspace checks
+*.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
 
 # macOS
 .DS_Store
@@ -20,7 +28,7 @@ build/
 .LSOverride
 ._*
 
-# SPM
+# Swift Package Manager
 .swiftpm/
 .build/
 
@@ -38,8 +46,11 @@ Carthage/Build/
 timeline.xctimeline
 playground.xcworkspace
 
-# FastLane (if used)
+# Fastlane (if used)
 fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
-fastlane/test_output
+fastlane/test_output/
+
+# Codex
+.codex/

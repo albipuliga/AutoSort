@@ -39,6 +39,20 @@ struct GeneralSettingsView: View {
                     get: { viewModel.launchAtLogin },
                     set: { viewModel.setLaunchAtLogin($0) }
                 ))
+
+                Picker("Duplicates", selection: Binding(
+                    get: { viewModel.duplicateHandling },
+                    set: { viewModel.setDuplicateHandling($0) }
+                )) {
+                    ForEach(DuplicateHandlingOption.allCases) { option in
+                        Text(option.displayName).tag(option)
+                    }
+                }
+                .pickerStyle(.menu)
+
+                Text(viewModel.duplicateHandling.description)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             } header: {
                 Text("Behavior")
             }

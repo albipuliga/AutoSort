@@ -253,6 +253,12 @@ final class SettingsService: ObservableObject {
         settings.showNotifications = show
     }
 
+    // MARK: - Duplicate Handling
+
+    func setDuplicateHandling(_ option: DuplicateHandlingOption) {
+        settings.duplicateHandling = option
+    }
+
     // MARK: - Launch at Login
 
     func setLaunchAtLogin(_ enabled: Bool) {

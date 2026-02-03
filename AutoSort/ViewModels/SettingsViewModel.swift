@@ -10,6 +10,7 @@ final class SettingsViewModel: ObservableObject {
     @Published var baseDirectoryPath: String?
     @Published var launchAtLogin: Bool = false
     @Published var showNotifications: Bool = true
+    @Published var duplicateHandling: DuplicateHandlingOption = .rename
 
     // Course Mappings
     @Published var courseMappings: [CourseMapping] = []
@@ -37,6 +38,7 @@ final class SettingsViewModel: ObservableObject {
                 self?.baseDirectoryPath = settings.baseDirectoryPath
                 self?.launchAtLogin = settings.launchAtLogin
                 self?.showNotifications = settings.showNotifications
+                self?.duplicateHandling = settings.duplicateHandling
                 self?.courseMappings = settings.courseMappings
             }
             .store(in: &cancellables)
@@ -62,6 +64,12 @@ final class SettingsViewModel: ObservableObject {
 
     func setShowNotifications(_ show: Bool) {
         settingsService.setShowNotifications(show)
+    }
+
+    // MARK: - Duplicate Handling
+
+    func setDuplicateHandling(_ option: DuplicateHandlingOption) {
+        settingsService.setDuplicateHandling(option)
     }
 
     // MARK: - Course Mappings

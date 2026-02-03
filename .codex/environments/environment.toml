@@ -4,9 +4,3 @@ name = "AutoSort"
 
 [setup]
 script = ""
-
-[[actions]]
-name = "Build"
-icon = "tool"
-command = "xcodebuild -project AutoSort.xcodeproj -scheme AutoSort -configuration Debug build && open build/Debug/AutoSort.app"
-platform = "darwin"

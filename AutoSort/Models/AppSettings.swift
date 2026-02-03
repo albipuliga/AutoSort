@@ -10,6 +10,7 @@ struct AppSettings: Codable {
     var isWatchingEnabled: Bool
     var launchAtLogin: Bool
     var showNotifications: Bool
+    var duplicateHandling: DuplicateHandlingOption
 
     init(
         watchedFolderPath: String? = nil,
@@ -19,7 +20,8 @@ struct AppSettings: Codable {
         courseMappings: [CourseMapping] = [],
         isWatchingEnabled: Bool = true,
         launchAtLogin: Bool = false,
-        showNotifications: Bool = true
+        showNotifications: Bool = true,
+        duplicateHandling: DuplicateHandlingOption = .rename
     ) {
         self.watchedFolderPath = watchedFolderPath
         self.watchedFolderBookmark = watchedFolderBookmark
@@ -29,6 +31,7 @@ struct AppSettings: Codable {
         self.isWatchingEnabled = isWatchingEnabled
         self.launchAtLogin = launchAtLogin
         self.showNotifications = showNotifications
+        self.duplicateHandling = duplicateHandling
     }
 
     /// Checks if the app is properly configured to start sorting
@@ -45,4 +48,46 @@ struct AppSettings: Codable {
     }
 
     static let `default` = AppSettings()
+}
+
+extension AppSettings {
+    enum CodingKeys: String, CodingKey {
+        case watchedFolderPath
+        case watchedFolderBookmark
+        case baseDirectoryPath
+        case baseDirectoryBookmark
+        case courseMappings
+        case isWatchingEnabled
+        case launchAtLogin
+        case showNotifications
+        case duplicateHandling
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        watchedFolderPath = try container.decodeIfPresent(String.self, forKey: .watchedFolderPath)
+        watchedFolderBookmark = try container.decodeIfPresent(Data.self, forKey: .watchedFolderBookmark)
+        baseDirectoryPath = try container.decodeIfPresent(String.self, forKey: .baseDirectoryPath)
+        baseDirectoryBookmark = try container.decodeIfPresent(Data.self, forKey: .baseDirectoryBookmark)
+        courseMappings = try container.decodeIfPresent([CourseMapping].self, forKey: .courseMappings) ?? []
+        isWatchingEnabled = try container.decodeIfPresent(Bool.self, forKey: .isWatchingEnabled) ?? true
+        launchAtLogin = try container.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
+        showNotifications = try container.decodeIfPresent(Bool.self, forKey: .showNotifications) ?? true
+        duplicateHandling = try container.decodeIfPresent(DuplicateHandlingOption.self, forKey: .duplicateHandling) ?? .rename
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        try container.encodeIfPresent(watchedFolderPath, forKey: .watchedFolderPath)
+        try container.encodeIfPresent(watchedFolderBookmark, forKey: .watchedFolderBookmark)
+        try container.encodeIfPresent(baseDirectoryPath, forKey: .baseDirectoryPath)
+        try container.encodeIfPresent(baseDirectoryBookmark, forKey: .baseDirectoryBookmark)
+        try container.encode(courseMappings, forKey: .courseMappings)
+        try container.encode(isWatchingEnabled, forKey: .isWatchingEnabled)
+        try container.encode(launchAtLogin, forKey: .launchAtLogin)
+        try container.encode(showNotifications, forKey: .showNotifications)
+        try container.encode(duplicateHandling, forKey: .duplicateHandling)
+    }
 }

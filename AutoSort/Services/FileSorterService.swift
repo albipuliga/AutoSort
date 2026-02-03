@@ -1,10 +1,12 @@
 import Foundation
 import Combine
+import AppKit
 
 /// Result of a file sorting operation
 enum SortingResult {
     case success(SortedFileRecord)
     case noMatch
+    case skippedDuplicate
     case error(Error)
 }
 
@@ -19,6 +21,8 @@ enum FileSorterError: LocalizedError {
     case sourcePathMissing
     case undoSourceExists
     case undoDestinationMissing
+    case duplicateSkipped
+    case removeFailed(Error)
 
     var errorDescription: String? {
         switch self {
@@ -40,6 +44,10 @@ enum FileSorterError: LocalizedError {
             return "A file already exists at the original location"
         case .undoDestinationMissing:
             return "Moved file could not be found at the destination"
+        case .duplicateSkipped:
+            return "Duplicate file was skipped"
+        case .removeFailed(let error):
+            return "Failed to remove existing file: \(error.localizedDescription)"
         }
     }
 }
@@ -115,6 +123,9 @@ final class FileSorterService: ObservableObject {
             }
 
             return .success(record)
+        } catch FileSorterError.duplicateSkipped {
+            print("⏭️ Duplicate file skipped: \(filename)")
+            return .skippedDuplicate
         } catch {
             print("❌ Error sorting file: \(error.localizedDescription)")
             return .error(error)
@@ -205,14 +216,33 @@ final class FileSorterService: ObservableObject {
             }
         }
 
-        // Check if destination file already exists
+        var finalDestinationURL = destinationURL
+
+        // Handle duplicates if destination file already exists
         if fileManager.fileExists(atPath: destinationURL.path) {
-            throw FileSorterError.destinationExists
+            let resolution = try resolveDuplicateResolution(
+                for: sourceURL,
+                destinationURL: destinationURL
+            )
+
+            switch resolution {
+            case .skip:
+                throw FileSorterError.duplicateSkipped
+            case .replace:
+                do {
+                    try fileManager.removeItem(at: destinationURL)
+                } catch {
+                    throw FileSorterError.removeFailed(error)
+                }
+                finalDestinationURL = destinationURL
+            case .rename:
+                finalDestinationURL = uniqueDestinationURL(for: destinationURL)
+            }
         }
 
         // Move the file
         do {
-            try fileManager.moveItem(at: sourceURL, to: destinationURL)
+            try fileManager.moveItem(at: sourceURL, to: finalDestinationURL)
         } catch {
             throw FileSorterError.moveFailed(error)
         }
@@ -223,10 +253,82 @@ final class FileSorterService: ObservableObject {
             courseCode: match.courseCode,
             sessionNumber: match.sessionNumber,
             sourcePath: sourceURL.path,
-            destinationPath: destinationURL.path
+            destinationPath: finalDestinationURL.path
         )
     }
 
+    private enum DuplicateResolution {
+        case rename
+        case skip
+        case replace
+    }
+
+    private func resolveDuplicateResolution(
+        for sourceURL: URL,
+        destinationURL: URL
+    ) throws -> DuplicateResolution {
+        switch settingsService.settings.duplicateHandling {
+        case .rename:
+            return .rename
+        case .skip:
+            return .skip
+        case .replace:
+            return .replace
+        case .ask:
+            return promptForDuplicateResolution(
+                filename: sourceURL.lastPathComponent,
+                destinationURL: destinationURL
+            )
+        }
+    }
+
+    private func promptForDuplicateResolution(
+        filename: String,
+        destinationURL: URL
+    ) -> DuplicateResolution {
+        if !Thread.isMainThread {
+            return DispatchQueue.main.sync {
+                promptForDuplicateResolution(filename: filename, destinationURL: destinationURL)
+            }
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "Duplicate File"
+        alert.informativeText = "\(filename) already exists in \(destinationURL.deletingLastPathComponent().lastPathComponent)."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Replace")
+        alert.addButton(withTitle: "Rename")
+        alert.addButton(withTitle: "Skip")
+
+        let response = alert.runModal()
+        switch response {
+        case .alertFirstButtonReturn:
+            return .replace
+        case .alertSecondButtonReturn:
+            return .rename
+        default:
+            return .skip
+        }
+    }
+
+    private func uniqueDestinationURL(for destinationURL: URL) -> URL {
+        let fileManager = FileManager.default
+        let folderURL = destinationURL.deletingLastPathComponent()
+        let baseName = destinationURL.deletingPathExtension().lastPathComponent
+        let fileExtension = destinationURL.pathExtension
+
+        for index in 1...9999 {
+            let candidateName = fileExtension.isEmpty
+                ? "\(baseName) (\(index))"
+                : "\(baseName) (\(index)).\(fileExtension)"
+            let candidateURL = folderURL.appendingPathComponent(candidateName)
+            if !fileManager.fileExists(atPath: candidateURL.path) {
+                return candidateURL
+            }
+        }
+
+        return destinationURL
+    }
     private func revertMostRecentMove(_ record: SortedFileRecord?) throws -> SortedFileRecord {
         guard let record = record else {
             throw FileSorterError.noRecentActivity

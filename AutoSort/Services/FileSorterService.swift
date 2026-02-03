@@ -102,20 +102,15 @@ final class FileSorterService: ObservableObject {
     /// Manually processes a file
     func processFile(at url: URL) -> SortingResult {
         let filename = url.lastPathComponent
-        print("📁 Processing file: \(filename)")
         
         let matcher = FilePatternMatcher.fromCurrentSettings()
 
         guard let match = matcher.match(filename: filename) else {
-            print("❌ No match found for: \(filename)")
             return .noMatch
         }
 
-        print("✅ Match found - Course: \(match.courseCode), Session: \(match.sessionNumber)")
-
         do {
             let record = try sortFile(at: url, with: match)
-            print("✅ File sorted successfully to: \(record.destinationPath)")
             settingsService.addRecentActivity(record)
 
             if settingsService.settings.showNotifications {
@@ -124,10 +119,8 @@ final class FileSorterService: ObservableObject {
 
             return .success(record)
         } catch FileSorterError.duplicateSkipped {
-            print("⏭️ Duplicate file skipped: \(filename)")
             return .skippedDuplicate
         } catch {
-            print("❌ Error sorting file: \(error.localizedDescription)")
             return .error(error)
         }
     }

@@ -194,7 +194,7 @@ struct GeneralSettingsView: View {
                     onSelect(url)
                 }
             case .failure(let error):
-                print("Folder selection error: \(error)")
+                _ = error
             }
         }
     }

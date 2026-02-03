@@ -85,8 +85,6 @@ final class SettingsService: ObservableObject {
     // MARK: - Folder Selection with Security-Scoped Bookmarks
 
     func setWatchedFolder(_ url: URL) {
-        print("📂 Setting watched folder: \(url.path)")
-
         // Stop accessing the old security-scoped resource
         watchedFolderSecurityURL?.stopAccessingSecurityScopedResource()
         watchedFolderSecurityURL = nil
@@ -94,7 +92,6 @@ final class SettingsService: ObservableObject {
         // IMPORTANT: Start accessing security-scoped resource BEFORE creating bookmark
         // URLs from fileImporter require this to create bookmarks from them
         guard url.startAccessingSecurityScopedResource() else {
-            print("❌ Failed to start accessing security-scoped resource for watched folder")
             settings.watchedFolderPath = url.path
             return
         }
@@ -104,9 +101,7 @@ final class SettingsService: ObservableObject {
             settings.watchedFolderPath = url.path
             settings.watchedFolderBookmark = bookmark
             watchedFolderSecurityURL = url
-            print("✅ Security-scoped access granted and bookmark created for watched folder")
         } catch {
-            print("❌ Failed to create bookmark for watched folder: \(error)")
             // Keep access since we successfully started it
             watchedFolderSecurityURL = url
             settings.watchedFolderPath = url.path
@@ -114,8 +109,6 @@ final class SettingsService: ObservableObject {
     }
 
     func setBaseDirectory(_ url: URL) {
-        print("📂 Setting base directory: \(url.path)")
-
         // Stop accessing the old security-scoped resource
         baseDirectorySecurityURL?.stopAccessingSecurityScopedResource()
         baseDirectorySecurityURL = nil
@@ -123,7 +116,6 @@ final class SettingsService: ObservableObject {
         // IMPORTANT: Start accessing security-scoped resource BEFORE creating bookmark
         // URLs from fileImporter require this to create bookmarks from them
         guard url.startAccessingSecurityScopedResource() else {
-            print("❌ Failed to start accessing security-scoped resource for base directory")
             settings.baseDirectoryPath = url.path
             return
         }
@@ -133,9 +125,7 @@ final class SettingsService: ObservableObject {
             settings.baseDirectoryPath = url.path
             settings.baseDirectoryBookmark = bookmark
             baseDirectorySecurityURL = url
-            print("✅ Security-scoped access granted and bookmark created for base directory")
         } catch {
-            print("❌ Failed to create bookmark for base directory: \(error)")
             // Keep access since we successfully started it
             baseDirectorySecurityURL = url
             settings.baseDirectoryPath = url.path
@@ -151,23 +141,15 @@ final class SettingsService: ObservableObject {
     }
 
     private func restoreSecurityScopedBookmarks() {
-        print("🔄 Restoring security-scoped bookmarks...")
-        
         if let bookmarkData = settings.watchedFolderBookmark {
             if let url = restoreBookmark(bookmarkData) {
                 watchedFolderSecurityURL = url
-                print("✅ Restored watched folder: \(url.path)")
-            } else {
-                print("❌ Failed to restore watched folder bookmark")
             }
         }
         
         if let bookmarkData = settings.baseDirectoryBookmark {
             if let url = restoreBookmark(bookmarkData) {
                 baseDirectorySecurityURL = url
-                print("✅ Restored base directory: \(url.path)")
-            } else {
-                print("❌ Failed to restore base directory bookmark")
             }
         }
     }
@@ -182,16 +164,11 @@ final class SettingsService: ObservableObject {
                 relativeTo: nil,
                 bookmarkDataIsStale: &isStale
             )
-            if isStale {
-                print("⚠️ Bookmark is stale for: \(url.path)")
-            }
             guard url.startAccessingSecurityScopedResource() else {
-                print("❌ Failed to start accessing security-scoped resource: \(url.path)")
                 return nil
             }
             return url
         } catch {
-            print("❌ Failed to restore bookmark: \(error)")
             return nil
         }
     }
@@ -307,8 +284,6 @@ final class SettingsService: ObservableObject {
             } else {
                 try SMAppService.mainApp.unregister()
             }
-        } catch {
-            print("Failed to update launch at login: \(error)")
-        }
+        } catch { }
     }
 }

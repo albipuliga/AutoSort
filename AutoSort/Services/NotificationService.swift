@@ -17,9 +17,8 @@ final class NotificationService: NSObject {
     /// Requests notification permissions from the user
     func requestPermission() {
         notificationCenter.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
-            if let error = error {
-                print("Notification permission error: \(error)")
-            }
+            _ = granted
+            _ = error
         }
     }
 
@@ -52,9 +51,7 @@ final class NotificationService: NSObject {
         )
 
         notificationCenter.add(request) { error in
-            if let error = error {
-                print("Failed to send notification: \(error)")
-            }
+            _ = error
         }
     }
 

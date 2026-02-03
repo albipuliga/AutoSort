@@ -35,25 +35,19 @@ final class FileWatcherService {
         stopWatching()
 
         guard FileManager.default.fileExists(atPath: directory.path) else {
-            print("❌ Directory does not exist: \(directory.path)")
             return
         }
 
-        print("👀 Starting to watch directory: \(directory.path)")
         watchedDirectory = directory
 
         // Initialize known files
         knownFiles = getCurrentFiles(in: directory)
-        print("📋 Initial file count: \(knownFiles.count)")
 
         // Open file descriptor for the directory
         fileDescriptor = open(directory.path, O_EVTONLY)
         guard fileDescriptor >= 0 else {
-            print("❌ Failed to open directory for watching: \(directory.path)")
             return
         }
-
-        print("✅ File descriptor opened successfully: \(fileDescriptor)")
 
         // Create dispatch source for file system events
         source = DispatchSource.makeFileSystemObjectSource(
@@ -74,7 +68,6 @@ final class FileWatcherService {
 
         source?.resume()
         isWatching = true
-        print("✅ Watch started successfully")
     }
 
     /// Stops watching the current directory
@@ -103,13 +96,8 @@ final class FileWatcherService {
     private func handleDirectoryChange() {
         guard let directory = watchedDirectory else { return }
 
-        print("🔔 Directory change detected")
         let currentFiles = getCurrentFiles(in: directory)
         let newFiles = currentFiles.subtracting(knownFiles)
-
-        if !newFiles.isEmpty {
-            print("🆕 New files detected: \(newFiles)")
-        }
 
         for filename in newFiles {
             scheduleFileProcessing(filename: filename, in: directory)
@@ -140,8 +128,6 @@ final class FileWatcherService {
 
     /// Schedules file processing with debouncing to ensure file write is complete
     private func scheduleFileProcessing(filename: String, in directory: URL) {
-        print("⏱️ Scheduling file for processing: \(filename)")
-        
         // Cancel any existing pending work for this file
         pendingFiles[filename]?.cancel()
 
@@ -153,11 +139,9 @@ final class FileWatcherService {
             // Verify file still exists and is accessible
             guard FileManager.default.fileExists(atPath: fileURL.path),
                   self.isFileReady(at: fileURL) else {
-                print("⚠️ File not ready or doesn't exist: \(filename)")
                 return
             }
 
-            print("✅ File ready, notifying delegate: \(filename)")
             self.pendingFiles.removeValue(forKey: filename)
 
             DispatchQueue.main.async {

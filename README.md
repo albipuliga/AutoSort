@@ -9,6 +9,17 @@ AutoSort is a macOS menu bar app that keeps course materials organized for you. 
 - Custom session keywords and folder naming
 - Duplicate handling (rename, skip, replace, or ask)
 
+## Install & Run (GitHub Release)
+1. Go to the **Releases** section of this repository.
+2. Download the latest `AutoSort.dmg`.
+3. Open the DMG and drag `AutoSort.app` into `/Applications`.
+4. Launch AutoSort from `/Applications`.
+
+**If macOS blocks the app (Gatekeeper):**
+1. In Finder, right-click `AutoSort.app` and choose **Open**.
+2. Click **Open** in the dialog.
+3. If it still won’t open, go to **System Settings → Privacy & Security** and click **Open Anyway** for AutoSort.
+
 ## What It Solves
 If your Downloads folder keeps filling up with files like `CS101_S2_Slides.pdf` or `ML_Week4_Notes.docx`, AutoSort can move them into a structured library automatically:
 
@@ -40,12 +51,20 @@ AutoSort monitors your chosen watch folder and moves files as soon as they appea
 ### 2) Manual Drag-and-Drop
 Prefer to sort files on demand? Open the menu bar and drop one or more files into the drop zone. AutoSort will sort them immediately.
 
+<p align="center">
+  <img src="assets/dropdown.png" alt="Menu bar drop zone" width="720" />
+</p>
+
 ### 3) Course Mappings
 Map a **course code** to a **destination folder name**:
 - Example: `ML` → `Machine Learning`
 - Example: `CS101` → `Intro to CS`
 
 Only enabled mappings are used during sorting.
+
+<p align="center">
+  <img src="assets/mappings.png" alt="Course mappings" width="720" />
+</p>
 
 ### 4) Auto-Detect Course Mappings
 If you already have a partially organized course folder, AutoSort can scan it and suggest mappings. You can review and apply suggestions to save time.
@@ -58,6 +77,10 @@ AutoSort looks for a session keyword and number in the filename. You can customi
 - `Lecture` (e.g., `Lecture2`)
 
 You can also choose how the session folder is named (for example: `Session {n}` or `Week {n}`).
+
+<p align="center">
+  <img src="assets/settings.png" alt="Session and destination settings" width="720" />
+</p>
 
 ### 6) Duplicate Handling
 If a file with the same name already exists in the destination, you can choose what AutoSort should do:

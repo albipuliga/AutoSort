@@ -6,7 +6,8 @@ import SwiftUI
 @MainActor
 final class MenuBarViewModel: ObservableObject {
     @Published var isWatching: Bool = false
-    @Published var isConfigured: Bool = false
+    @Published var isReadyToSort: Bool = false
+    @Published var canWatch: Bool = false
     @Published var recentActivity: [SortedFileRecord] = []
     @Published var watchedFolderName: String?
 
@@ -30,8 +31,9 @@ final class MenuBarViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] settings in
                 guard let self = self else { return }
-                self.isWatching = settings.isWatchingEnabled && settings.isConfigured
-                self.isConfigured = settings.isConfigured
+                self.isReadyToSort = settings.isReadyForSorting
+                self.canWatch = settings.canWatch
+                self.isWatching = settings.isWatchingEnabled && settings.canWatch
                 self.watchedFolderName = self.settingsService.watchedFolderURL?.lastPathComponent
             }
             .store(in: &cancellables)
@@ -74,6 +76,39 @@ final class MenuBarViewModel: ObservableObject {
         record.revealInFinder()
     }
 
+    func handleDroppedFiles(_ urls: [URL]) {
+        guard isReadyToSort else { return }
+
+        let fileURLs = urls.filter { $0.isFileURL && !$0.hasDirectoryPath }
+        guard !fileURLs.isEmpty else { return }
+
+        let sorterService = fileSorterService
+
+        Task.detached(priority: .userInitiated) {
+            var didSucceed = false
+
+            for url in fileURLs {
+                let didStartAccess = url.startAccessingSecurityScopedResource()
+                let result = sorterService.processFile(at: url)
+                if case .success = result {
+                    didSucceed = true
+                }
+                if didStartAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            if didSucceed {
+                await MainActor.run {
+                    NotificationCenter.default.post(
+                        name: Constants.UI.menuBarShouldClose,
+                        object: nil
+                    )
+                }
+            }
+        }
+    }
+
     func openSettings() {
         // Open settings window using the standard AppKit action
         // This works on both macOS 13 and 14+
@@ -91,17 +126,23 @@ final class MenuBarViewModel: ObservableObject {
     // MARK: - Computed Properties
 
     var statusText: String {
-        if !isConfigured {
+        if !isReadyToSort {
             return "Not Configured"
         }
-        return isWatching ? "Watching" : "Paused"
+        if canWatch {
+            return isWatching ? "Watching" : "Paused"
+        }
+        return "Manual Ready"
     }
 
     var statusColor: Color {
-        if !isConfigured {
+        if !isReadyToSort {
             return .gray
         }
-        return isWatching ? .green : .orange
+        if canWatch {
+            return isWatching ? .green : .orange
+        }
+        return .accentColor
     }
 
     var canUndoLastMove: Bool {

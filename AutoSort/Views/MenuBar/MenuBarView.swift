@@ -12,8 +12,14 @@ struct MenuBarView: View {
             Divider()
                 .padding(.vertical, 4)
 
+            // Drag and Drop
+            dropZoneSection
+
+            Divider()
+                .padding(.vertical, 4)
+
             // Toggle Watching
-            if viewModel.isConfigured {
+            if viewModel.canWatch {
                 toggleButton
                 Divider()
                     .padding(.vertical, 4)
@@ -111,6 +117,26 @@ struct MenuBarView: View {
                     onReveal: viewModel.revealInFinder
                 )
             }
+        }
+    }
+
+    // MARK: - Drop Zone Section
+
+    private var dropZoneSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Drag & Drop")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+
+            DropZoneView(isEnabled: viewModel.isReadyToSort) { urls in
+                viewModel.handleDroppedFiles(urls)
+            }
+            .padding(.horizontal, 12)
         }
     }
 

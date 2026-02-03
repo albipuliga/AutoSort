@@ -84,8 +84,8 @@ final class FileSorterService: ObservableObject {
 
     /// Starts the file sorting service
     func start() {
-        guard let watchedFolder = settingsService.watchedFolderURL,
-              settingsService.settings.isConfigured else {
+        guard settingsService.settings.canWatch,
+              let watchedFolder = settingsService.watchedFolderURL else {
             return
         }
 
@@ -167,13 +167,13 @@ final class FileSorterService: ObservableObject {
     // MARK: - Private Methods
 
     private func handleSettingsChange(_ settings: AppSettings) {
-        if settings.isWatchingEnabled && settings.isConfigured {
-            if let watchedFolder = settingsService.watchedFolderURL {
-                if fileWatcher.watchedDirectory?.path != watchedFolder.path {
-                    fileWatcher.startWatching(directory: watchedFolder)
-                }
-                isActive = true
+        if settings.isWatchingEnabled,
+           settings.canWatch,
+           let watchedFolder = settingsService.watchedFolderURL {
+            if fileWatcher.watchedDirectory?.path != watchedFolder.path {
+                fileWatcher.startWatching(directory: watchedFolder)
             }
+            isActive = true
         } else {
             fileWatcher.stopWatching()
             isActive = false

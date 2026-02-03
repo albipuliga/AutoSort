@@ -197,9 +197,8 @@ final class SettingsViewModel: ObservableObject {
     }
 
     var hasValidConfiguration: Bool {
-        watchedFolderPath != nil &&
         baseDirectoryPath != nil &&
-        !courseMappings.isEmpty
+        courseMappings.contains { $0.isEnabled }
     }
 
     // MARK: - Helpers

@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		A1000001001 /* AutoSortApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000001000 /* AutoSortApp.swift */; };
 		A1000002001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000002000 /* AppDelegate.swift */; };
+		A1000023001 /* StatusBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000023000 /* StatusBarController.swift */; };
+		A1000024001 /* StatusItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000024000 /* StatusItemView.swift */; };
 		A1000003001 /* CourseMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000003000 /* CourseMapping.swift */; };
 		A1000004001 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000004000 /* AppSettings.swift */; };
 		A1000005001 /* SortedFileRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000005000 /* SortedFileRecord.swift */; };
@@ -19,6 +21,7 @@
 		A1000010001 /* MenuBarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000010000 /* MenuBarViewModel.swift */; };
 		A1000011001 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000011000 /* SettingsViewModel.swift */; };
 		A1000012001 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000012000 /* MenuBarView.swift */; };
+		A1000022001 /* DropZoneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000022000 /* DropZoneView.swift */; };
 		A1000013001 /* RecentActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000013000 /* RecentActivityView.swift */; };
 		A1000014001 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000014000 /* SettingsView.swift */; };
 		A1000015001 /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000015000 /* GeneralSettingsView.swift */; };
@@ -33,6 +36,8 @@
 		A1000000000 /* AutoSort.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AutoSort.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1000001000 /* AutoSortApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoSortApp.swift; sourceTree = "<group>"; };
 		A1000002000 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		A1000023000 /* StatusBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarController.swift; sourceTree = "<group>"; };
+		A1000024000 /* StatusItemView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusItemView.swift; sourceTree = "<group>"; };
 		A1000003000 /* CourseMapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseMapping.swift; sourceTree = "<group>"; };
 		A1000004000 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		A1000005000 /* SortedFileRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SortedFileRecord.swift; sourceTree = "<group>"; };
@@ -43,6 +48,7 @@
 		A1000010000 /* MenuBarViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarViewModel.swift; sourceTree = "<group>"; };
 		A1000011000 /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
 		A1000012000 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
+		A1000022000 /* DropZoneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DropZoneView.swift; sourceTree = "<group>"; };
 		A1000013000 /* RecentActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentActivityView.swift; sourceTree = "<group>"; };
 		A1000014000 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A1000015000 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
@@ -102,6 +108,8 @@
 			children = (
 				A1000001000 /* AutoSortApp.swift */,
 				A1000002000 /* AppDelegate.swift */,
+				A1000023000 /* StatusBarController.swift */,
+				A1000024000 /* StatusItemView.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -150,6 +158,7 @@
 			isa = PBXGroup;
 			children = (
 				A1000012000 /* MenuBarView.swift */,
+				A1000022000 /* DropZoneView.swift */,
 				A1000013000 /* RecentActivityView.swift */,
 			);
 			path = MenuBar;
@@ -254,6 +263,8 @@
 			files = (
 				A1000001001 /* AutoSortApp.swift in Sources */,
 				A1000002001 /* AppDelegate.swift in Sources */,
+				A1000023001 /* StatusBarController.swift in Sources */,
+				A1000024001 /* StatusItemView.swift in Sources */,
 				A1000003001 /* CourseMapping.swift in Sources */,
 				A1000004001 /* AppSettings.swift in Sources */,
 				A1000022001 /* DuplicateHandlingOption.swift in Sources */,
@@ -265,6 +276,7 @@
 				A1000010001 /* MenuBarViewModel.swift in Sources */,
 				A1000011001 /* SettingsViewModel.swift in Sources */,
 				A1000012001 /* MenuBarView.swift in Sources */,
+				A1000022001 /* DropZoneView.swift in Sources */,
 				A1000013001 /* RecentActivityView.swift in Sources */,
 				A1000014001 /* SettingsView.swift in Sources */,
 				A1000015001 /* GeneralSettingsView.swift in Sources */,

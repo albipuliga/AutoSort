@@ -40,12 +40,20 @@ struct AppSettings: Codable {
         self.duplicateHandling = duplicateHandling
     }
 
-    /// Checks if the app is properly configured to start sorting
-    var isConfigured: Bool {
-        watchedFolderPath != nil &&
+    /// Checks if the app is properly configured to sort files (manual or watched)
+    var isReadyForSorting: Bool {
         baseDirectoryPath != nil &&
-        !courseMappings.isEmpty &&
         courseMappings.contains { $0.isEnabled }
+    }
+
+    /// Checks if the app has everything needed to watch a folder
+    var canWatch: Bool {
+        isReadyForSorting && watchedFolderPath != nil
+    }
+
+    /// Backwards-compatible configuration check
+    var isConfigured: Bool {
+        isReadyForSorting
     }
 
     /// Returns enabled course mappings only

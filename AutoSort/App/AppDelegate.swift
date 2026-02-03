@@ -4,6 +4,7 @@ import UserNotifications
 
 /// App delegate handling notification responses and app lifecycle
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
+    private var statusBarController: StatusBarController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Set up notification delegate
@@ -12,6 +13,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         // Request notification permissions
         NotificationService.shared.requestPermission()
         NotificationService.shared.setupNotificationCategories()
+
+        let sorterService = FileSorterService()
+        let viewModel = MenuBarViewModel(fileSorterService: sorterService)
+        statusBarController = StatusBarController(viewModel: viewModel)
     }
 
     func applicationWillTerminate(_ notification: Notification) {

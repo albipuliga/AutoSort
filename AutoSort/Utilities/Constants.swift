@@ -16,6 +16,12 @@ enum Constants {
         static let filePathKey = "filePath"
     }
 
+    enum UI {
+        static let menuBarShouldClose = Notification.Name("AutoSort.menuBarShouldClose")
+        static let menuBarCloseDelay: TimeInterval = 0.25
+        static let menuBarFadeDuration: TimeInterval = 0.2
+    }
+
     enum FileWatcher {
         /// Debounce interval in seconds to wait for file write completion
         static let debounceInterval: TimeInterval = 0.5

@@ -34,6 +34,7 @@ final class SettingsViewModel: ObservableObject {
 
     private let settingsService: SettingsService
     private var cancellables = Set<AnyCancellable>()
+    private var autoDetectTask: Task<Void, Never>?
 
     init(settingsService: SettingsService = .shared) {
         self.settingsService = settingsService
@@ -169,7 +170,8 @@ final class SettingsViewModel: ObservableObject {
     }
 
     func runAutoDetect() {
-        guard !isAutoDetecting else { return }
+        autoDetectTask?.cancel()
+        autoDetectTask = nil
         settingsService.setHasSeenAutoDetectPrompt(true)
 
         guard let baseDirectoryURL = settingsService.baseDirectoryURL else {
@@ -182,15 +184,19 @@ final class SettingsViewModel: ObservableObject {
 
         let sessionKeywords = settingsService.settings.sessionKeywords
 
-        Task { [weak self] in
+        autoDetectTask = Task { [weak self] in
             let result = await Task.detached(priority: .userInitiated) {
                 CourseAutoDetectService().scan(
                     baseDirectoryURL: baseDirectoryURL,
-                    sessionKeywords: sessionKeywords
+                    sessionKeywords: sessionKeywords,
+                    shouldCancel: { Task.isCancelled }
                 )
             }.value
 
             guard let self else { return }
+            guard !Task.isCancelled else { return }
+
+            self.autoDetectTask = nil
             self.isAutoDetecting = false
             self.autoDetectSkippedCount = result.skippedFolderCount
             self.autoDetectSuggestions = self.buildAutoDetectSuggestions(from: result.suggestions)
@@ -206,6 +212,8 @@ final class SettingsViewModel: ObservableObject {
     }
 
     func resetAutoDetectState() {
+        autoDetectTask?.cancel()
+        autoDetectTask = nil
         autoDetectSuggestions = []
         autoDetectSkippedCount = 0
         isAutoDetecting = false

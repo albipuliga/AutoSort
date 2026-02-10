@@ -23,6 +23,9 @@ enum Constants {
     }
 
     enum FileWatcher {
+        /// Coalescing window for filesystem events before performing a directory diff
+        static let eventWindowInterval: TimeInterval = 0.2
+
         /// Debounce interval in seconds to wait for file write completion
         static let debounceInterval: TimeInterval = 0.5
 

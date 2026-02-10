@@ -9,11 +9,18 @@ struct PatternMatchResult {
 
 /// Handles pattern matching for course codes and session numbers in filenames
 final class FilePatternMatcher {
-    private let courseMappings: [CourseMapping]
+    private let compiledCourseMatchers: [(mapping: CourseMapping, regex: NSRegularExpression)]
     private let sessionRegex: NSRegularExpression?
 
     init(courseMappings: [CourseMapping], sessionKeywords: [String]) {
-        self.courseMappings = courseMappings.filter { $0.isEnabled }
+        let enabledMappings = courseMappings.filter { $0.isEnabled }
+        self.compiledCourseMatchers = enabledMappings.compactMap { mapping in
+            let pattern = Self.buildCourseCodePattern(mapping.courseCode)
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
+                return nil
+            }
+            return (mapping: mapping, regex: regex)
+        }
         let normalizedKeywords = Self.normalizeSessionKeywords(sessionKeywords)
         let keywords = normalizedKeywords.isEmpty ? Constants.Session.defaultKeywords : normalizedKeywords
         self.sessionRegex = Self.buildSessionRegex(from: keywords)
@@ -45,22 +52,21 @@ final class FilePatternMatcher {
 
     /// Finds the first matching course code in the filename
     private func findCourseCode(in uppercasedFilename: String) -> CourseMapping? {
-        for mapping in courseMappings {
-            let pattern = buildCourseCodePattern(mapping.courseCode)
-            if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
-               regex.firstMatch(
-                   in: uppercasedFilename,
-                   options: [],
-                   range: NSRange(uppercasedFilename.startIndex..., in: uppercasedFilename)
-               ) != nil {
-                return mapping
+        let filenameRange = NSRange(uppercasedFilename.startIndex..., in: uppercasedFilename)
+        for matcher in compiledCourseMatchers {
+            if matcher.regex.firstMatch(
+                in: uppercasedFilename,
+                options: [],
+                range: filenameRange
+            ) != nil {
+                return matcher.mapping
             }
         }
         return nil
     }
 
     /// Builds a regex pattern for a course code with word boundaries
-    private func buildCourseCodePattern(_ courseCode: String) -> String {
+    private static func buildCourseCodePattern(_ courseCode: String) -> String {
         // Escape any special regex characters in the course code
         let escaped = NSRegularExpression.escapedPattern(for: courseCode)
         // Match course code with word boundaries or common delimiters

@@ -84,30 +84,32 @@ final class MenuBarViewModel: ObservableObject {
 
         let sorterService = fileSorterService
 
-        Task.detached(priority: .userInitiated) {
-            var shouldCloseMenu = false
+        Task(priority: .userInitiated) {
+            let shouldCloseMenu = await Task.detached(priority: .userInitiated) {
+                var shouldCloseMenu = false
 
-            for url in fileURLs {
-                let didStartAccess = url.startAccessingSecurityScopedResource()
-                let result = sorterService.processFile(at: url)
-                switch result {
-                case .success, .skippedDuplicate:
-                    shouldCloseMenu = true
-                case .noMatch, .error:
-                    break
+                for url in fileURLs {
+                    let didStartAccess = url.startAccessingSecurityScopedResource()
+                    let result = sorterService.processFile(at: url, origin: .manual)
+                    switch result {
+                    case .success, .skippedDuplicate:
+                        shouldCloseMenu = true
+                    case .noMatch, .error:
+                        break
+                    }
+                    if didStartAccess {
+                        url.stopAccessingSecurityScopedResource()
+                    }
                 }
-                if didStartAccess {
-                    url.stopAccessingSecurityScopedResource()
-                }
-            }
+
+                return shouldCloseMenu
+            }.value
 
             if shouldCloseMenu {
-                await MainActor.run {
-                    NotificationCenter.default.post(
-                        name: Constants.UI.menuBarShouldClose,
-                        object: nil
-                    )
-                }
+                NotificationCenter.default.post(
+                    name: Constants.UI.menuBarShouldClose,
+                    object: nil
+                )
             }
         }
     }

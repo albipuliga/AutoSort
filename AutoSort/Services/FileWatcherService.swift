@@ -1,5 +1,4 @@
 import Foundation
-import Combine
 
 /// Protocol for receiving file watcher events
 protocol FileWatcherDelegate: AnyObject {
@@ -10,69 +9,131 @@ protocol FileWatcherDelegate: AnyObject {
 final class FileWatcherService {
     weak var delegate: FileWatcherDelegate?
 
+    private let watchQueue = DispatchQueue(label: "com.autosort.filewatcher", qos: .utility)
+    private let watchQueueSpecificKey = DispatchSpecificKey<Void>()
+
     private var source: DispatchSourceFileSystemObject?
     private var fileDescriptor: Int32 = -1
     private var knownFiles: Set<String> = []
     private var pendingFiles: [String: DispatchWorkItem] = [:]
-    private let watchQueue = DispatchQueue(label: "com.autosort.filewatcher", qos: .utility)
+    private var scanWorkItem: DispatchWorkItem?
     private let debounceInterval: TimeInterval
+    private let eventWindowInterval: TimeInterval
 
-    private(set) var watchedDirectory: URL?
-    private(set) var isWatching: Bool = false
+    private var watchedDirectoryStorage: URL?
+    private var isWatchingStorage: Bool = false
 
-    init(debounceInterval: TimeInterval = Constants.FileWatcher.debounceInterval) {
+    var watchedDirectory: URL? {
+        executeOnWatchQueueSync {
+            watchedDirectoryStorage
+        }
+    }
+
+    var isWatching: Bool {
+        executeOnWatchQueueSync {
+            isWatchingStorage
+        }
+    }
+
+    init(
+        debounceInterval: TimeInterval = Constants.FileWatcher.debounceInterval,
+        eventWindowInterval: TimeInterval = Constants.FileWatcher.eventWindowInterval
+    ) {
         self.debounceInterval = debounceInterval
+        self.eventWindowInterval = eventWindowInterval
+        watchQueue.setSpecific(key: watchQueueSpecificKey, value: ())
     }
 
     deinit {
-        stopWatching()
+        executeOnWatchQueueSync {
+            stopWatchingOnQueue()
+        }
     }
 
     // MARK: - Public Methods
 
     /// Starts watching the specified directory for new files
     func startWatching(directory: URL) {
-        stopWatching()
+        executeOnWatchQueue { [weak self] in
+            self?.startWatchingOnQueue(directory: directory)
+        }
+    }
+
+    /// Stops watching the current directory
+    func stopWatching() {
+        executeOnWatchQueue { [weak self] in
+            self?.stopWatchingOnQueue()
+        }
+    }
+
+    /// Refreshes the known files list (useful after settings change)
+    func refreshKnownFiles() {
+        executeOnWatchQueue { [weak self] in
+            guard let self = self, let directory = self.watchedDirectoryStorage else { return }
+            self.knownFiles = self.getCurrentFiles(in: directory)
+        }
+    }
+
+    // MARK: - Private Methods
+
+    private func executeOnWatchQueue(_ work: @escaping () -> Void) {
+        if DispatchQueue.getSpecific(key: watchQueueSpecificKey) != nil {
+            work()
+        } else {
+            watchQueue.async(execute: work)
+        }
+    }
+
+    private func executeOnWatchQueueSync<T>(_ work: () -> T) -> T {
+        if DispatchQueue.getSpecific(key: watchQueueSpecificKey) != nil {
+            return work()
+        } else {
+            return watchQueue.sync(execute: work)
+        }
+    }
+
+    private func startWatchingOnQueue(directory: URL) {
+        stopWatchingOnQueue()
 
         guard FileManager.default.fileExists(atPath: directory.path) else {
             return
         }
 
-        watchedDirectory = directory
-
-        // Initialize known files
+        watchedDirectoryStorage = directory
         knownFiles = getCurrentFiles(in: directory)
 
-        // Open file descriptor for the directory
         fileDescriptor = open(directory.path, O_EVTONLY)
         guard fileDescriptor >= 0 else {
+            watchedDirectoryStorage = nil
+            knownFiles.removeAll()
             return
         }
 
-        // Create dispatch source for file system events
-        source = DispatchSource.makeFileSystemObjectSource(
+        let source = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: fileDescriptor,
             eventMask: [.write, .extend, .link, .rename],
             queue: watchQueue
         )
+        self.source = source
 
-        source?.setEventHandler { [weak self] in
-            self?.handleDirectoryChange()
+        source.setEventHandler { [weak self] in
+            self?.scheduleDirectoryScan()
         }
 
-        source?.setCancelHandler { [weak self] in
+        source.setCancelHandler { [weak self] in
             guard let self = self, self.fileDescriptor >= 0 else { return }
             close(self.fileDescriptor)
             self.fileDescriptor = -1
         }
 
-        source?.resume()
-        isWatching = true
+        source.resume()
+        isWatchingStorage = true
     }
 
-    /// Stops watching the current directory
-    func stopWatching() {
-        // Cancel any pending debounce work items
+    private func stopWatchingOnQueue() {
+        scanWorkItem?.cancel()
+        scanWorkItem = nil
+
         for (_, workItem) in pendingFiles {
             workItem.cancel()
         }
@@ -80,30 +141,40 @@ final class FileWatcherService {
 
         source?.cancel()
         source = nil
-        isWatching = false
-        watchedDirectory = nil
+
+        if fileDescriptor >= 0 {
+            close(fileDescriptor)
+            fileDescriptor = -1
+        }
+
+        isWatchingStorage = false
+        watchedDirectoryStorage = nil
         knownFiles.removeAll()
     }
 
-    /// Refreshes the known files list (useful after settings change)
-    func refreshKnownFiles() {
-        guard let directory = watchedDirectory else { return }
-        knownFiles = getCurrentFiles(in: directory)
+    private func scheduleDirectoryScan() {
+        scanWorkItem?.cancel()
+
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.handleDirectoryChange()
+        }
+
+        scanWorkItem = workItem
+        watchQueue.asyncAfter(deadline: .now() + eventWindowInterval, execute: workItem)
     }
 
-    // MARK: - Private Methods
-
     private func handleDirectoryChange() {
-        guard let directory = watchedDirectory else { return }
+        guard let directory = watchedDirectoryStorage else { return }
+        scanWorkItem = nil
 
         let currentFiles = getCurrentFiles(in: directory)
         let newFiles = currentFiles.subtracting(knownFiles)
 
+        knownFiles = currentFiles
+
         for filename in newFiles {
             scheduleFileProcessing(filename: filename, in: directory)
         }
-
-        knownFiles = currentFiles
     }
 
     private func getCurrentFiles(in directory: URL) -> Set<String> {

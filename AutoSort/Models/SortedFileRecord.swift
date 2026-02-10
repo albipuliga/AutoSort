@@ -3,6 +3,12 @@ import AppKit
 
 /// Records a file that was sorted, for recent activity display
 struct SortedFileRecord: Identifiable, Codable {
+    private static let relativeFormatter: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter
+    }()
+
     let id: UUID
     let filename: String
     let courseCode: String
@@ -42,9 +48,7 @@ struct SortedFileRecord: Identifiable, Codable {
 
     /// Relative time string for display (e.g., "2 minutes ago")
     var relativeTimeString: String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: timestamp, relativeTo: Date())
+        Self.relativeFormatter.localizedString(for: timestamp, relativeTo: Date())
     }
 
     /// Opens the destination folder in Finder

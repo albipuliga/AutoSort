@@ -13,7 +13,15 @@ final class CourseAutoDetectService {
         self.fileManager = fileManager
     }
 
-    func scan(baseDirectoryURL: URL, sessionKeywords: [String]) -> AutoDetectResult {
+    func scan(
+        baseDirectoryURL: URL,
+        sessionKeywords: [String],
+        shouldCancel: @escaping () -> Bool = { Task.isCancelled }
+    ) -> AutoDetectResult {
+        guard !shouldCancel() else {
+            return AutoDetectResult(suggestions: [], skippedFolderCount: 0, errors: [])
+        }
+
         let normalizedKeywords = normalizeSessionKeywords(sessionKeywords)
         let effectiveKeywords = normalizedKeywords.isEmpty ? Constants.Session.defaultKeywords : normalizedKeywords
         guard let regex = buildInferenceRegex(from: effectiveKeywords) else {
@@ -32,6 +40,9 @@ final class CourseAutoDetectService {
         let topLevelURLs: [URL]
 
         do {
+            guard !shouldCancel() else {
+                return AutoDetectResult(suggestions: [], skippedFolderCount: 0, errors: [])
+            }
             topLevelURLs = try fileManager.contentsOfDirectory(
                 at: baseDirectoryURL,
                 includingPropertiesForKeys: resourceKeys,
@@ -46,11 +57,26 @@ final class CourseAutoDetectService {
         }
 
         for folderURL in topLevelURLs {
+            if shouldCancel() {
+                return AutoDetectResult(
+                    suggestions: suggestions,
+                    skippedFolderCount: skippedFolderCount,
+                    errors: errors
+                )
+            }
+
             guard (try? folderURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else {
                 continue
             }
 
             do {
+                if shouldCancel() {
+                    return AutoDetectResult(
+                        suggestions: suggestions,
+                        skippedFolderCount: skippedFolderCount,
+                        errors: errors
+                    )
+                }
                 let childURLs = try fileManager.contentsOfDirectory(
                     at: folderURL,
                     includingPropertiesForKeys: resourceKeys,
@@ -67,6 +93,13 @@ final class CourseAutoDetectService {
                 }
 
                 for fileURL in topLevelFiles {
+                    if shouldCancel() {
+                        return AutoDetectResult(
+                            suggestions: suggestions,
+                            skippedFolderCount: skippedFolderCount,
+                            errors: errors
+                        )
+                    }
                     guard remainingSlots > 0 else { break }
                     let filename = fileURL.lastPathComponent
                     filesScanned += 1
@@ -82,6 +115,13 @@ final class CourseAutoDetectService {
                 }
 
                 for sessionFolderURL in childFolders {
+                    if shouldCancel() {
+                        return AutoDetectResult(
+                            suggestions: suggestions,
+                            skippedFolderCount: skippedFolderCount,
+                            errors: errors
+                        )
+                    }
                     let folderName = sessionFolderURL.lastPathComponent
                     filesScanned += 1
                     if let code = extractCourseCode(from: folderName, using: regex) {
@@ -90,6 +130,13 @@ final class CourseAutoDetectService {
 
                     guard remainingSlots > 0 else { continue }
 
+                    if shouldCancel() {
+                        return AutoDetectResult(
+                            suggestions: suggestions,
+                            skippedFolderCount: skippedFolderCount,
+                            errors: errors
+                        )
+                    }
                     let sessionContents = try fileManager.contentsOfDirectory(
                         at: sessionFolderURL,
                         includingPropertiesForKeys: resourceKeys,
@@ -100,6 +147,13 @@ final class CourseAutoDetectService {
                     }
 
                     for fileURL in sessionFiles {
+                        if shouldCancel() {
+                            return AutoDetectResult(
+                                suggestions: suggestions,
+                                skippedFolderCount: skippedFolderCount,
+                                errors: errors
+                            )
+                        }
                         guard remainingSlots > 0 else { break }
                         let filename = fileURL.lastPathComponent
                         filesScanned += 1

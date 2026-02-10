@@ -10,6 +10,11 @@ enum SortingResult {
     case error(Error)
 }
 
+enum SortingOrigin {
+    case manual
+    case watcher
+}
+
 /// Errors that can occur during file sorting
 enum FileSorterError: LocalizedError {
     case baseDirectoryNotSet
@@ -66,10 +71,19 @@ enum FileSorterError: LocalizedError {
 
 /// Service that handles pattern matching and file moving
 final class FileSorterService: ObservableObject {
+    private struct MatcherCacheKey: Equatable {
+        let enabledMappings: [CourseMapping]
+        let sessionKeywords: [String]
+    }
+
     private let settingsService: SettingsService
     private let fileWatcher: FileWatcherService
     private let notificationService: NotificationService
     private var cancellables = Set<AnyCancellable>()
+    private let matcherLock = NSLock()
+    private var cachedMatcherKey: MatcherCacheKey?
+    private var cachedMatcher: FilePatternMatcher?
+    private var activeWatchedDirectoryPath: String?
 
     @Published private(set) var isActive: Bool = false
 
@@ -86,7 +100,9 @@ final class FileSorterService: ObservableObject {
 
         // React to settings changes
         settingsService.$settings
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] settings in
+                self?.updateMatcherCacheIfNeeded(with: settings)
                 self?.handleSettingsChange(settings)
             }
             .store(in: &cancellables)
@@ -102,30 +118,35 @@ final class FileSorterService: ObservableObject {
         }
 
         fileWatcher.startWatching(directory: watchedFolder)
+        activeWatchedDirectoryPath = watchedFolder.path
         isActive = true
     }
 
     /// Stops the file sorting service
     func stop() {
         fileWatcher.stopWatching()
+        activeWatchedDirectoryPath = nil
         isActive = false
     }
 
-    /// Manually processes a file
-    func processFile(at url: URL) -> SortingResult {
+    /// Processes a file from manual sorting or watcher events
+    func processFile(at url: URL, origin: SortingOrigin = .manual) -> SortingResult {
         let filename = url.lastPathComponent
-        
-        let matcher = FilePatternMatcher.fromCurrentSettings()
+
+        let matcher = currentMatcher()
 
         guard let match = matcher.match(filename: filename) else {
             return .noMatch
         }
 
         do {
-            let record = try sortFile(at: url, with: match)
-            settingsService.addRecentActivity(record)
+            let record = try sortFile(at: url, with: match, origin: origin)
+            let shouldNotify = performOnMainSync { () -> Bool in
+                settingsService.addRecentActivity(record)
+                return settingsService.settings.showNotifications
+            }
 
-            if settingsService.settings.showNotifications {
+            if shouldNotify {
                 notificationService.sendFileSortedNotification(record: record)
             }
 
@@ -139,7 +160,9 @@ final class FileSorterService: ObservableObject {
 
     /// Undo the most recent file move, if possible
     func undoLastMove() -> Result<SortedFileRecord, Error> {
-        let record = settingsService.recentActivity.first
+        let record = performOnMainSync {
+            settingsService.recentActivity.first
+        }
         let wasActive = isActive
 
         if wasActive {
@@ -154,14 +177,20 @@ final class FileSorterService: ObservableObject {
 
         do {
             let revertedRecord = try revertMostRecentMove(record)
+            let shouldNotify = performOnMainSync {
+                settingsService.settings.showNotifications
+            }
 
-            if settingsService.settings.showNotifications {
+            if shouldNotify {
                 notificationService.sendUndoSuccessNotification(record: revertedRecord)
             }
 
             return .success(revertedRecord)
         } catch {
-            if settingsService.settings.showNotifications {
+            let shouldNotify = performOnMainSync {
+                settingsService.settings.showNotifications
+            }
+            if shouldNotify {
                 let filename = record?.filename ?? "file"
                 notificationService.sendUndoErrorNotification(filename: filename, error: error.localizedDescription)
             }
@@ -175,17 +204,23 @@ final class FileSorterService: ObservableObject {
         if settings.isWatchingEnabled,
            settings.canWatch,
            let watchedFolder = settingsService.watchedFolderURL {
-            if fileWatcher.watchedDirectory?.path != watchedFolder.path {
+            if activeWatchedDirectoryPath != watchedFolder.path || !isActive {
                 fileWatcher.startWatching(directory: watchedFolder)
+                activeWatchedDirectoryPath = watchedFolder.path
             }
             isActive = true
         } else {
             fileWatcher.stopWatching()
+            activeWatchedDirectoryPath = nil
             isActive = false
         }
     }
 
-    private func sortFile(at sourceURL: URL, with match: PatternMatchResult) throws -> SortedFileRecord {
+    private func sortFile(
+        at sourceURL: URL,
+        with match: PatternMatchResult,
+        origin: SortingOrigin
+    ) throws -> SortedFileRecord {
         let fileManager = FileManager.default
 
         // Verify base directory
@@ -242,7 +277,8 @@ final class FileSorterService: ObservableObject {
         if fileManager.fileExists(atPath: destinationURL.path) {
             let resolution = try resolveDuplicateResolution(
                 for: sourceURL,
-                destinationURL: destinationURL
+                destinationURL: destinationURL,
+                origin: origin
             )
 
             switch resolution {
@@ -291,7 +327,9 @@ final class FileSorterService: ObservableObject {
     }
 
     private func sessionFolderName(for sessionNumber: Int) -> String {
-        let rawTemplate = settingsService.settings.sessionFolderTemplate
+        let rawTemplate = performOnMainSync {
+            settingsService.settings.sessionFolderTemplate
+        }
         let trimmed = rawTemplate.trimmingCharacters(in: .whitespacesAndNewlines)
         let template = trimmed.isEmpty ? Constants.Session.defaultFolderTemplate : trimmed
         let number = String(sessionNumber)
@@ -313,9 +351,14 @@ final class FileSorterService: ObservableObject {
 
     private func resolveDuplicateResolution(
         for sourceURL: URL,
-        destinationURL: URL
+        destinationURL: URL,
+        origin: SortingOrigin
     ) throws -> DuplicateResolution {
-        switch settingsService.settings.duplicateHandling {
+        _ = origin
+        let duplicateHandling = performOnMainSync {
+            settingsService.settings.duplicateHandling
+        }
+        switch duplicateHandling {
         case .rename:
             return .rename
         case .skip:
@@ -424,7 +467,9 @@ final class FileSorterService: ObservableObject {
         }
 
         cleanupCreatedDestinationFolders(for: record)
-        settingsService.removeRecentActivity(record)
+        performOnMainSync {
+            settingsService.removeRecentActivity(record)
+        }
         return record
     }
 
@@ -456,6 +501,55 @@ final class FileSorterService: ObservableObject {
                 try? fileManager.removeItem(at: folderURL)
             }
         }
+    }
+
+    private func updateMatcherCacheIfNeeded(with settings: AppSettings) {
+        let key = matcherCacheKey(for: settings)
+        matcherLock.lock()
+        defer { matcherLock.unlock() }
+
+        guard key != cachedMatcherKey else { return }
+        cachedMatcher = FilePatternMatcher(
+            courseMappings: settings.courseMappings,
+            sessionKeywords: settings.sessionKeywords
+        )
+        cachedMatcherKey = key
+    }
+
+    private func currentMatcher() -> FilePatternMatcher {
+        let settingsSnapshot = performOnMainSync {
+            settingsService.settings
+        }
+        let key = matcherCacheKey(for: settingsSnapshot)
+
+        matcherLock.lock()
+        defer { matcherLock.unlock() }
+
+        if let matcher = cachedMatcher, cachedMatcherKey == key {
+            return matcher
+        }
+
+        let matcher = FilePatternMatcher(
+            courseMappings: settingsSnapshot.courseMappings,
+            sessionKeywords: settingsSnapshot.sessionKeywords
+        )
+        cachedMatcher = matcher
+        cachedMatcherKey = key
+        return matcher
+    }
+
+    private func matcherCacheKey(for settings: AppSettings) -> MatcherCacheKey {
+        MatcherCacheKey(
+            enabledMappings: settings.courseMappings.filter { $0.isEnabled },
+            sessionKeywords: settings.sessionKeywords
+        )
+    }
+
+    private func performOnMainSync<T>(_ work: () -> T) -> T {
+        if Thread.isMainThread {
+            return work()
+        }
+        return DispatchQueue.main.sync(execute: work)
     }
 
     private func sourcePathForUndo(from sourceURL: URL) -> String? {
@@ -522,6 +616,6 @@ final class FileSorterService: ObservableObject {
 
 extension FileSorterService: FileWatcherDelegate {
     func fileWatcher(_ watcher: FileWatcherService, didDetectNewFile url: URL) {
-        _ = processFile(at: url)
+        _ = processFile(at: url, origin: .watcher)
     }
 }

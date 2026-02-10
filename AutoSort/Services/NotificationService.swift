@@ -127,9 +127,32 @@ final class NotificationService: NSObject {
     func handleNotificationResponse(_ response: UNNotificationResponse) {
         let userInfo = response.notification.request.content.userInfo
 
-        if let filePath = userInfo[Constants.Notifications.filePathKey] as? String {
-            let url = URL(fileURLWithPath: filePath)
+        if let filePath = userInfo[Constants.Notifications.filePathKey] as? String,
+           let url = validatedNotificationURL(for: filePath) {
             NSWorkspace.shared.activateFileViewerSelecting([url])
         }
+    }
+
+    private func validatedNotificationURL(for filePath: String) -> URL? {
+        let candidate = URL(fileURLWithPath: filePath)
+        guard FileManager.default.fileExists(atPath: candidate.path) else {
+            return nil
+        }
+        guard let baseDirectory = SettingsService.shared.baseDirectoryURL,
+              isURL(candidate, within: baseDirectory) else {
+            return nil
+        }
+        return candidate
+    }
+
+    private func isURL(_ candidate: URL, within parent: URL) -> Bool {
+        let canonicalCandidate = candidate.standardizedFileURL.resolvingSymlinksInPath().path
+        let canonicalParent = parent.standardizedFileURL.resolvingSymlinksInPath().path
+
+        if canonicalCandidate == canonicalParent {
+            return true
+        }
+
+        return canonicalCandidate.hasPrefix(canonicalParent + "/")
     }
 }

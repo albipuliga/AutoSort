@@ -15,12 +15,16 @@ enum FileSorterError: LocalizedError {
     case baseDirectoryNotSet
     case sourceFileNotFound
     case destinationExists
+    case invalidDestinationComponent
+    case destinationOutsideBaseDirectory
+    case unsafeDestinationSymlink
     case moveFailed(Error)
     case folderCreationFailed(Error)
     case noRecentActivity
     case sourcePathMissing
     case undoSourceExists
     case undoDestinationMissing
+    case undoPathOutsideAllowedRoots
     case duplicateSkipped
     case removeFailed(Error)
 
@@ -32,6 +36,12 @@ enum FileSorterError: LocalizedError {
             return "Source file no longer exists"
         case .destinationExists:
             return "A file with the same name already exists at the destination"
+        case .invalidDestinationComponent:
+            return "Destination folder contains unsupported path characters"
+        case .destinationOutsideBaseDirectory:
+            return "Destination path is outside the selected base directory"
+        case .unsafeDestinationSymlink:
+            return "Destination path uses an unsafe symbolic link"
         case .moveFailed(let error):
             return "Failed to move file: \(error.localizedDescription)"
         case .folderCreationFailed(let error):
@@ -44,6 +54,8 @@ enum FileSorterError: LocalizedError {
             return "A file already exists at the original location"
         case .undoDestinationMissing:
             return "Moved file could not be found at the destination"
+        case .undoPathOutsideAllowedRoots:
+            return "Undo is only allowed for files inside configured folders"
         case .duplicateSkipped:
             return "Duplicate file was skipped"
         case .removeFailed(let error):
@@ -187,14 +199,25 @@ final class FileSorterService: ObservableObject {
         }
 
         // Build destination path: {base}/{courseFolderName}/Session {n}/
+        let courseFolderName = try validatedPathComponent(match.courseMapping.folderName)
+        let sessionName = sessionFolderName(for: match.sessionNumber)
+        let sessionFolderName = try validatedPathComponent(sessionName)
+
         let courseFolderURL = baseDirectory
-            .appendingPathComponent(match.courseMapping.folderName)
+            .appendingPathComponent(courseFolderName)
 
         let sessionFolderURL = courseFolderURL
-            .appendingPathComponent(sessionFolderName(for: match.sessionNumber))
+            .appendingPathComponent(sessionFolderName)
+
+        try ensureSafeDirectoryTarget(courseFolderURL, under: baseDirectory)
+        try ensureSafeDirectoryTarget(sessionFolderURL, under: baseDirectory)
 
         let destinationURL = sessionFolderURL
             .appendingPathComponent(sourceURL.lastPathComponent)
+
+        guard isURL(destinationURL, within: baseDirectory) else {
+            throw FileSorterError.destinationOutsideBaseDirectory
+        }
 
         // Create session folder if needed
         if !fileManager.fileExists(atPath: sessionFolderURL.path) {
@@ -207,6 +230,7 @@ final class FileSorterService: ObservableObject {
             } catch {
                 throw FileSorterError.folderCreationFailed(error)
             }
+            try ensureSafeDirectoryTarget(sessionFolderURL, under: baseDirectory)
         }
 
         var finalDestinationURL = destinationURL
@@ -233,6 +257,10 @@ final class FileSorterService: ObservableObject {
             }
         }
 
+        guard isURL(finalDestinationURL, within: baseDirectory) else {
+            throw FileSorterError.destinationOutsideBaseDirectory
+        }
+
         // Move the file
         do {
             try fileManager.moveItem(at: sourceURL, to: finalDestinationURL)
@@ -245,7 +273,7 @@ final class FileSorterService: ObservableObject {
             filename: sourceURL.lastPathComponent,
             courseCode: match.courseCode,
             sessionNumber: match.sessionNumber,
-            sourcePath: sourceURL.path,
+            sourcePath: sourcePathForUndo(from: sourceURL),
             destinationPath: finalDestinationURL.path
         )
     }
@@ -349,6 +377,12 @@ final class FileSorterService: ObservableObject {
         let fileManager = FileManager.default
         let sourceURL = URL(fileURLWithPath: sourcePath)
         let destinationURL = URL(fileURLWithPath: record.destinationPath)
+        
+        guard let baseDirectory = settingsService.baseDirectoryURL,
+              isURL(destinationURL, within: baseDirectory),
+              isUndoSourceAllowed(sourceURL) else {
+            throw FileSorterError.undoPathOutsideAllowedRoots
+        }
 
         guard fileManager.fileExists(atPath: destinationURL.path) else {
             throw FileSorterError.undoDestinationMissing
@@ -379,6 +413,65 @@ final class FileSorterService: ObservableObject {
 
         settingsService.removeRecentActivity(record)
         return record
+    }
+
+    private func sourcePathForUndo(from sourceURL: URL) -> String? {
+        guard isUndoSourceAllowed(sourceURL) else {
+            return nil
+        }
+        return sourceURL.path
+    }
+
+    private func isUndoSourceAllowed(_ sourceURL: URL) -> Bool {
+        let allowedRoots = [
+            settingsService.watchedFolderURL,
+            settingsService.baseDirectoryURL
+        ].compactMap { $0 }
+
+        return allowedRoots.contains { isURL(sourceURL, within: $0) }
+    }
+
+    private func validatedPathComponent(_ raw: String) throws -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let containsPathSeparator = trimmed.contains("/") || trimmed.contains(":")
+        let isUnsafeComponent = trimmed.isEmpty || trimmed == "." || trimmed == ".."
+
+        if containsPathSeparator || isUnsafeComponent || trimmed.contains("\u{0}") {
+            throw FileSorterError.invalidDestinationComponent
+        }
+
+        return trimmed
+    }
+
+    private func ensureSafeDirectoryTarget(_ directoryURL: URL, under baseDirectory: URL) throws {
+        guard isURL(directoryURL, within: baseDirectory) else {
+            throw FileSorterError.destinationOutsideBaseDirectory
+        }
+
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: directoryURL.path, isDirectory: &isDirectory) else {
+            return
+        }
+
+        guard isDirectory.boolValue else {
+            throw FileSorterError.invalidDestinationComponent
+        }
+
+        let values = try? directoryURL.resourceValues(forKeys: [.isSymbolicLinkKey])
+        if values?.isSymbolicLink == true {
+            throw FileSorterError.unsafeDestinationSymlink
+        }
+    }
+
+    private func isURL(_ candidate: URL, within parent: URL) -> Bool {
+        let canonicalCandidate = candidate.standardizedFileURL.resolvingSymlinksInPath().path
+        let canonicalParent = parent.standardizedFileURL.resolvingSymlinksInPath().path
+
+        if canonicalCandidate == canonicalParent {
+            return true
+        }
+
+        return canonicalCandidate.hasPrefix(canonicalParent + "/")
     }
 }
 

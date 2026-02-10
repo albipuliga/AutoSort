@@ -9,6 +9,7 @@ struct SortedFileRecord: Identifiable, Codable {
     let sessionNumber: Int
     let sourcePath: String?
     let destinationPath: String
+    let createdDestinationFolderPaths: [String]?
     let timestamp: Date
 
     init(
@@ -18,6 +19,7 @@ struct SortedFileRecord: Identifiable, Codable {
         sessionNumber: Int,
         sourcePath: String? = nil,
         destinationPath: String,
+        createdDestinationFolderPaths: [String]? = nil,
         timestamp: Date = Date()
     ) {
         self.id = id
@@ -26,6 +28,7 @@ struct SortedFileRecord: Identifiable, Codable {
         self.sessionNumber = sessionNumber
         self.sourcePath = sourcePath
         self.destinationPath = destinationPath
+        self.createdDestinationFolderPaths = createdDestinationFolderPaths
         self.timestamp = timestamp
     }
 

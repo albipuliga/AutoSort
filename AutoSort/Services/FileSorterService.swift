@@ -209,6 +209,9 @@ final class FileSorterService: ObservableObject {
         let sessionFolderURL = courseFolderURL
             .appendingPathComponent(sessionFolderName)
 
+        let courseFolderExisted = fileManager.fileExists(atPath: courseFolderURL.path)
+        let sessionFolderExisted = fileManager.fileExists(atPath: sessionFolderURL.path)
+
         try ensureSafeDirectoryTarget(courseFolderURL, under: baseDirectory)
         try ensureSafeDirectoryTarget(sessionFolderURL, under: baseDirectory)
 
@@ -269,12 +272,21 @@ final class FileSorterService: ObservableObject {
         }
 
         // Create and return the record
+        var createdDestinationFolderPaths: [String] = []
+        if !courseFolderExisted {
+            createdDestinationFolderPaths.append(courseFolderURL.path)
+        }
+        if !sessionFolderExisted {
+            createdDestinationFolderPaths.append(sessionFolderURL.path)
+        }
+
         return SortedFileRecord(
             filename: sourceURL.lastPathComponent,
             courseCode: match.courseCode,
             sessionNumber: match.sessionNumber,
             sourcePath: sourcePathForUndo(from: sourceURL),
-            destinationPath: finalDestinationURL.path
+            destinationPath: finalDestinationURL.path,
+            createdDestinationFolderPaths: createdDestinationFolderPaths.isEmpty ? nil : createdDestinationFolderPaths
         )
     }
 
@@ -411,8 +423,39 @@ final class FileSorterService: ObservableObject {
             throw FileSorterError.moveFailed(error)
         }
 
+        cleanupCreatedDestinationFolders(for: record)
         settingsService.removeRecentActivity(record)
         return record
+    }
+
+    private func cleanupCreatedDestinationFolders(for record: SortedFileRecord) {
+        guard let baseDirectory = settingsService.baseDirectoryURL else {
+            return
+        }
+
+        let fileManager = FileManager.default
+        let foldersToClean = (record.createdDestinationFolderPaths ?? [])
+            .map { URL(fileURLWithPath: $0) }
+            .filter { isURL($0, within: baseDirectory) }
+            .sorted { $0.pathComponents.count > $1.pathComponents.count }
+
+        for folderURL in foldersToClean {
+            var isDirectory: ObjCBool = false
+            guard fileManager.fileExists(atPath: folderURL.path, isDirectory: &isDirectory),
+                  isDirectory.boolValue else {
+                continue
+            }
+
+            let contents = (try? fileManager.contentsOfDirectory(
+                at: folderURL,
+                includingPropertiesForKeys: nil,
+                options: []
+            )) ?? []
+
+            if contents.isEmpty {
+                try? fileManager.removeItem(at: folderURL)
+            }
+        }
     }
 
     private func sourcePathForUndo(from sourceURL: URL) -> String? {

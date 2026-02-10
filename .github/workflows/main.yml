@@ -19,12 +19,25 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build
 
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Prepare DMG contents
+        run: |
+          mkdir -p "dmg-contents"
+          cp -R "build/Build/Products/Release/AutoSort.app" "dmg-contents/"
+
       - name: Create DMG
         run: |
-          hdiutil create \
-            -volname "AutoSort" \
-            -srcfolder "build/Build/Products/Release/AutoSort.app" \
-            -ov -format UDZO "AutoSort.dmg"
+          create-dmg \
+            --volname "AutoSort" \
+            --window-pos 710 390 \
+            --window-size 500 300 \
+            --icon-size 160 \
+            --icon "AutoSort.app" 130 120 \
+            --app-drop-link 370 120 \
+            "AutoSort.dmg" \
+            "dmg-contents/"
 
       - name: Publish Release
         env:
